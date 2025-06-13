@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-libration"
+version = "0.1.0"
+description = "Identify librations of resonant angles by LLMs"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Evgeny Smirnov" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "langchain>=0.1.0",
+    "langchain-community>=0.0.10",
+    "langchain-openai>=0.0.5",
+    "python-dotenv>=1.0.0",
+    "pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["black>=23.0.0", "flake8>=6.0.0", "pytest>=7.0.0", "pytest-cov>=4.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/smirik/llm-libration"
+Repository = "https://github.com/smirik/llm-libration"
+Issues = "https://github.com/smirik/llm-libration/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["llm_libration*"]
+
+[tool.black]
+line-length = 140
+skip-string-normalization = true
+
+[tool.flake8]
+max-line-length = 140
+extend-ignore = ["E203", "W503"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["--strict-markers", "--strict-config", "--cov=llm_libration"]
