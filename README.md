@@ -210,6 +210,43 @@ llm-libration run input/demo.png --provider anthropic --model claude-sonnet-4
 -   `--provider`: LLM provider (`openai`, `anthropic`, `openrouter`, `ollama`, `all`) (default: `openai`)
 -   `--model`: Custom model name (optional)
 
+### Benchmark Evaluation
+
+Evaluate LLM performance on categorized datasets:
+
+```bash
+# Run benchmark with default provider (OpenAI)
+llm-libration benchmark input/benchmark
+
+# Run benchmark with specific provider
+llm-libration benchmark input/benchmark --provider anthropic
+
+# Run benchmark with custom model
+llm-libration benchmark input/benchmark --provider openai --model gpt-4-vision-preview
+```
+
+**Benchmark Command Options:**
+
+-   `BENCHMARK_DIR`: Path to directory with categorized subdirectories (required)
+-   `--provider`: LLM provider (`openai`, `anthropic`, `openrouter`, `ollama`) (default: `openai`)
+-   `--model`: Custom model name (optional)
+
+**Benchmark Directory Structure:**
+The benchmark directory should contain categorized subdirectories:
+
+-   `libration/` - Images showing resonant (libration) behavior
+-   `circulation/` or `non-resonant/` - Images showing non-resonant (circulation) behavior
+-   `transient/` - Images showing transient behavior (mapped to controversial)
+-   `controversial/` - Images that are difficult to classify
+
+The command will:
+
+-   Recursively find all PNG files in these directories
+-   Analyze each image and compare with expected results
+-   Calculate classification metrics (Accuracy, Precision, Recall, F1 Score)
+-   Save detailed results in CSV and JSON formats
+-   Display comprehensive performance summary
+
 ## API Reference
 
 ### LibrationAnalyzer

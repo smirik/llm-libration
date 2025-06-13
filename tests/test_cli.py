@@ -1,36 +1,41 @@
-"""Tests for the CLI functionality."""
+"""Tests for the Command Line Interface."""
 
 import os
+import sys
 import tempfile
-import csv
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import pytest
 from click.testing import CliRunner
 import numpy as np
 
-from llm_libration.cli import main, plot, run, analyze_multiple_images
+from llm_libration.cli import (
+    main,
+    plot,
+    run,
+    analyze_multiple_images,
+)
+from llm_libration.types import ResonanceType
 
 
 class TestCLI:
-    """Test cases for CLI commands."""
+    """Test cases for CLI functionality."""
 
     @pytest.fixture
     def runner(self):
-        """Create a Click CLI runner for testing."""
+        """Create a Click test runner."""
         return CliRunner()
 
     @pytest.fixture
     def sample_csv_file(self):
         """Create a temporary CSV file for testing."""
-        data = {'times': [0.0, 1.0, 2.0, 3.0, 4.0], 'angle': [0.0, 1.57, 3.14, 4.71, 6.28]}
-
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
-            writer = csv.DictWriter(f, fieldnames=data.keys())
-            writer.writeheader()
-            for i in range(len(data['times'])):
-                row = {col: data[col][i] for col in data.keys()}
-                writer.writerow(row)
+            f.write('times,angle\n')
+            f.write('0.0,0.0\n')
+            f.write('1.0,1.57\n')
+            f.write('2.0,3.14\n')
+            f.write('3.0,4.71\n')
+            f.write('4.0,6.28\n')
             csv_path = f.name
 
         yield csv_path
@@ -40,9 +45,9 @@ class TestCLI:
 
     @pytest.fixture
     def sample_image_file(self):
-        """Create a temporary image file for testing."""
+        """Create a temporary PNG file for testing."""
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
-            # Write some dummy PNG data
+            # Write a minimal valid PNG header
             f.write(
                 b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x00\x01\x00\x18\xdd\x8d\xb4\x1c\x00\x00\x00\x00IEND\xaeB`\x82'
             )
@@ -53,6 +58,37 @@ class TestCLI:
         # Cleanup
         os.unlink(image_path)
 
+    @pytest.fixture
+    def benchmark_directory(self):
+        """Create a temporary benchmark directory structure for testing."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create benchmark subdirectories
+            (temp_path / "libration").mkdir()
+            (temp_path / "circulation").mkdir()
+            (temp_path / "transient").mkdir()
+            (temp_path / "controversial").mkdir()
+
+            # Create sample PNG files in each category
+            png_content = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x00\x01\x00\x18\xdd\x8d\xb4\x1c\x00\x00\x00\x00IEND\xaeB`\x82'
+
+            # Libration category (resonant)
+            (temp_path / "libration" / "libration_1.png").write_bytes(png_content)
+            (temp_path / "libration" / "libration_2.png").write_bytes(png_content)
+
+            # Circulation category (non-resonant)
+            (temp_path / "circulation" / "circulation_1.png").write_bytes(png_content)
+            (temp_path / "circulation" / "circulation_2.png").write_bytes(png_content)
+
+            # Transient category (controversial)
+            (temp_path / "transient" / "transient_1.png").write_bytes(png_content)
+
+            # Controversial category (controversial)
+            (temp_path / "controversial" / "controversial_1.png").write_bytes(png_content)
+
+            yield temp_path
+
     def test_main_help(self, runner):
         """Test the main CLI help command."""
         result = runner.invoke(main, ['--help'])
@@ -60,6 +96,7 @@ class TestCLI:
         assert 'LLM Libration: AI-powered analysis' in result.output
         assert 'plot' in result.output
         assert 'run' in result.output
+        assert 'benchmark' in result.output
 
     def test_main_version(self, runner):
         """Test the version command."""
