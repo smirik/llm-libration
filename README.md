@@ -1,260 +1,251 @@
-# LLM-Libration
+# LLM Libration
 
-Identify librations of resonant angles by LLMs.
+A Python package for analyzing resonant angle libration patterns in astronomical data using Large Language Models (LLMs). The package supports multiple LLM providers including OpenAI, Anthropic, OpenRouter, and local models via Ollama.
 
-This Python package uses Large Language Models (LLMs) to analyze astronomical resonant angle plots and determine whether the angles show libration patterns, circulation patterns, or transient behavior.
+## Features
+
+-   🔍 **Automated Analysis**: AI-powered detection of libration patterns in resonant angle plots
+-   🌐 **Multiple LLM Providers**: Support for OpenAI, Anthropic, OpenRouter, and Ollama
+-   📊 **Plot Classification**: Categorizes resonance behavior as pure, transient, or non-resonant
+-   🧪 **Easy Integration**: Simple Python API for astronomy research workflows
+-   ⚙️ **Configurable**: Environment-based configuration for different providers and models
+-   🔒 **Type Safety**: Full type hints and comprehensive error handling
 
 ## Installation
 
-### From Source
-
 ```bash
-git clone https://github.com/smirik/llm-libration.git
-cd llm-libration
-make setup
+pip install llm-libration
 ```
 
-### Development Installation
+### All Providers Included
 
-```bash
-git clone https://github.com/smirik/llm-libration.git
-cd llm-libration
-make install
-source .venv/bin/activate
+All LLM providers are now included by default with the installation:
+
+-   **OpenAI** (via `langchain-openai`)
+-   **Anthropic** (via `langchain-anthropic`)
+-   **OpenRouter** (via `langchain-openai`)
+-   **Ollama** (via `ollama` + `langchain-community`)
+
+No additional packages are required!
+
+## Quick Start
+
+### Basic Usage with OpenAI (default)
+
+```python
+from llm_libration import LibrationAnalyzer
+
+# Initialize analyzer (uses OpenAI by default)
+analyzer = LibrationAnalyzer()
+
+# Analyze an image
+result = analyzer.analyze_image("path/to/resonance_plot.png")
+print(f"Resonance type: {result}")  # Output: ResonanceType.RESONANT
+```
+
+### Using Different Providers
+
+```python
+from llm_libration import LibrationAnalyzer
+
+# Use Anthropic Claude
+analyzer = LibrationAnalyzer(provider="anthropic")
+
+# Use OpenRouter
+analyzer = LibrationAnalyzer(provider="openrouter")
+
+# Use local Ollama model
+analyzer = LibrationAnalyzer(provider="ollama")
+
+# Custom model for any provider
+analyzer = LibrationAnalyzer(
+    provider="anthropic",
+    model_name="claude-sonnet-4"
+)
 ```
 
 ## Configuration
 
-1. Copy the environment template:
+The package uses environment variables for configuration. Create a `.env` file in your project root:
+
+### OpenAI Configuration (Default)
 
 ```bash
-cp .env.dist .env
+LLM_PROVIDER=openai
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL_NAME=openai/gpt-4.1  # Optional, this is the default
 ```
 
-2. Edit `.env` and add your OpenAI API key:
+### Anthropic Configuration
 
 ```bash
-OPENAI_API_KEY=your_actual_api_key_here
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+ANTHROPIC_MODEL_NAME=claude-sonnet-4  # Optional, this is the default
 ```
 
-You can get your API key from [OpenAI Platform](https://platform.openai.com/api-keys).
+### OpenRouter Configuration
 
-## Usage
-
-### Basic Usage
-
-```python
-from llm_libration import ResonanceAnalyzer, ResonanceType
-
-# Initialize the analyzer
-analyzer = ResonanceAnalyzer()
-
-# Analyze an image
-result = analyzer.analyze_image("path/to/resonant_angle_plot.png")
-
-print(f"Analysis result: {result}")
-# Output: Analysis result: resonant
+```bash
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+OPENROUTER_MODEL_NAME=anthropic/claude-sonnet-4  # Optional, this is the default
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1  # Optional, this is the default
 ```
 
-### Advanced Usage
+### Ollama Configuration (Local Models)
+
+```bash
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434  # Optional, this is the default
+OLLAMA_MODEL_NAME=gemma3  # Optional, this is the default
+```
+
+**Available Ollama Vision Models:**
+
+-   `gemma3` (recommended, latest model with excellent vision capabilities)
+-   `llama3.2-vision` (good balance of performance and accuracy)
+-   `llava` (lightweight, good for development)
+-   `gemma2:2b-vision` (compact model)
+
+**Note:** The package uses the `ollama` Python package for optimal vision support with automatic fallback handling.
+
+### Advanced Configuration
+
+```bash
+# Custom prompt template (optional)
+PROMPT_TEMPLATE="Your custom analysis prompt here..."
+```
+
+## Environment Setup
+
+1. **Copy the example configuration:**
+
+    ```bash
+    cp .env.dist .env
+    ```
+
+2. **Edit `.env` with your credentials:**
+   Choose your preferred provider and set the appropriate API key.
+
+3. **For Ollama users:**
+   Make sure Ollama is running locally:
+    ```bash
+    ollama serve
+    ollama pull gemma3  # or your preferred vision model
+    ```
+
+## API Reference
+
+### LibrationAnalyzer
 
 ```python
-from llm_libration import ResonanceAnalyzer
+class LibrationAnalyzer:
+    def __init__(self, model_name: str = None, provider: str = None):
+        """
+        Initialize the analyzer.
 
-# Use custom model and temperature
-analyzer = ResonanceAnalyzer(
-    model_name="gpt-4",
-    temperature=0.1
+        Args:
+            model_name: Override the default model name
+            provider: Override the default provider (openai, anthropic, openrouter, ollama)
+        """
+
+    def analyze_image(self, image_path: Union[str, Path]) -> ResonanceType:
+        """
+        Analyze a resonance plot image.
+
+        Args:
+            image_path: Path to the image file
+
+        Returns:
+            ResonanceType enum (RESONANT, NON_RESONANT, or CONTROVERSIAL)
+        """
+```
+
+### ResonanceType
+
+```python
+from enum import Enum
+
+class ResonanceType(Enum):
+    RESONANT = "resonant"        # Pure libration detected
+    NON_RESONANT = "non-resonant" # Circulation detected
+    CONTROVERSIAL = "controversial" # Transient or uncertain behavior
+```
+
+## Provider Comparison
+
+| Provider       | Pros                                        | Cons                                  | Best For                                         |
+| -------------- | ------------------------------------------- | ------------------------------------- | ------------------------------------------------ |
+| **OpenAI**     | Excellent vision capabilities, fast         | Requires API key, paid service        | Production use, high accuracy                    |
+| **Anthropic**  | Strong reasoning, good vision               | Requires API key, paid service        | Research, detailed analysis                      |
+| **OpenRouter** | Access to many models, competitive pricing  | Requires API key, paid service        | Cost-effective access to multiple models         |
+| **Ollama**     | Free, local, private, proper vision support | Requires local setup, model downloads | Development, privacy-sensitive work, offline use |
+
+## Error Handling
+
+The package provides specific exceptions for different error scenarios:
+
+```python
+from llm_libration.exceptions import (
+    ImageAnalysisError,      # Image processing issues
+    LLMResponseError,        # LLM response parsing issues
+    ConfigurationError       # Missing or invalid configuration
 )
 
-result = analyzer.analyze_image("path/to/plot.png")
-
-# Handle different result types
-if result == ResonanceType.RESONANT:
-    print("Pure libration detected")
-elif result == ResonanceType.NON_RESONANT:
-    print("Circulation behavior detected")
-elif result == ResonanceType.CONTROVERSIAL:
-    print("Transient or uncertain behavior detected")
+try:
+    result = analyzer.analyze_image("plot.png")
+except ImageAnalysisError as e:
+    print(f"Image processing failed: {e}")
+except LLMResponseError as e:
+    print(f"LLM response issue: {e}")
+except ConfigurationError as e:
+    print(f"Configuration problem: {e}")
 ```
 
-### Command Line Usage
+## Backward Compatibility
 
-```bash
-# Run the example script
-make example IMAGE=path/to/your/image.png
+The original `ResonanceAnalyzer` class name is still supported:
 
-# Or activate the environment and run directly
-source .venv/bin/activate
-python example.py path/to/your/image.png
+```python
+from llm_libration import ResonanceAnalyzer  # Legacy name
+
+analyzer = ResonanceAnalyzer()  # Works exactly the same
 ```
-
-## Expected Input
-
-The package expects images containing plots of resonant angles vs time with the following characteristics:
-
--   **X-axis**: Time (typically 0 to 100,000 years)
--   **Y-axis**: Resonant angle (limits: -π to π)
--   **Content**: Plot showing the evolution of resonant angles over time
-
-## Output Types
-
-The analysis returns one of three `ResonanceType` values:
-
--   **`RESONANT`**: Pure libration (oscillatory behavior within bounds)
--   **`NON_RESONANT`**: Circulation (reaches plot boundaries)
--   **`CONTROVERSIAL`**: Transient behavior (mixed libration/circulation) or uncertain cases
 
 ## Development
 
-This project uses a Makefile for common development tasks. Run `make help` to see all available commands.
-
-### Quick Start
+To set up for development:
 
 ```bash
-# Complete project setup
-make setup
-
-# Show all available commands
-make help
-
-# Run all code quality checks
-make check
-
-# Development workflow
-make dev
-```
-
-### Common Commands
-
-```bash
-# Testing
-make test                    # Run tests
-make test-verbose           # Run tests with verbose output
-make coverage               # Run tests with coverage report
-make quick-test             # Run tests without coverage (faster)
-
-# Code Quality
-make format                 # Format code with black
-make format-check           # Check if code is properly formatted
-make lint                   # Run linting with flake8
-make check                  # Run format-check, lint, and test
-
-# Environment Management
-make install                # Create .venv and install dependencies
-make dev-install            # Install in development mode
-make clean                  # Clean temporary files
-make clean-all              # Clean everything including .venv
-make reinstall              # Clean and reinstall everything
-
-# Development Workflow
-make dev                    # Run format, lint, and test
-make status                 # Show project status
-make env-info               # Show environment information
-
-# Package Management
-make build                  # Build the package
-make publish-test           # Publish to Test PyPI
-make publish                # Publish to PyPI
-```
-
-### Manual Setup (without Makefile)
-
-If you prefer not to use the Makefile:
-
-```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
-pip install --upgrade pip
+git clone https://github.com/your-username/llm-libration.git
+cd llm-libration
 pip install -e ".[dev]"
+```
 
-# Run tests
+Run tests:
+
+```bash
 pytest
-
-# Run with coverage
-pytest --cov=llm_libration --cov-report=html --cov-report=term
-
-# Format code
-black llm_libration tests
-
-# Check formatting
-black --check llm_libration tests
-
-# Run linter
-flake8 llm_libration tests
 ```
-
-### Project Structure
-
-```
-llm-libration/
-├── llm_libration/          # Main package
-│   ├── __init__.py         # Package initialization
-│   ├── analyzer.py         # Main analyzer class
-│   ├── types.py           # Type definitions and enums
-│   └── exceptions.py      # Custom exceptions
-├── tests/                 # Test suite
-│   ├── __init__.py
-│   └── test_analyzer.py   # Main test file
-├── .venv/                 # Virtual environment (hidden)
-├── Makefile              # Development commands
-├── pyproject.toml         # Package configuration
-├── .env.dist             # Environment template
-└── README.md             # This file
-```
-
-## Requirements
-
--   Python 3.8+
--   OpenAI API key
--   Dependencies: langchain, python-dotenv, pillow
-
-## License
-
-MIT License - see the LICENSE file for details.
-
-## Author
-
-Evgeny Smirnov
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Run the test suite: `make check`
-6. Submit a pull request
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-## Troubleshooting
+## License
 
-### Common Issues
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-1. **"OPENAI_API_KEY not found"**: Make sure you've created a `.env` file with your API key
-2. **Image loading errors**: Ensure your image files are valid and readable
-3. **LLM response errors**: The model might return unexpected responses for unusual images
+## Citation
 
-### Debug Mode
+If you use this package in your research, please cite:
 
-For debugging, you can increase the temperature and examine raw LLM responses:
-
-```python
-analyzer = ResonanceAnalyzer(temperature=0.1)
-# Add logging to see raw responses
-```
-
-### Getting Help
-
-```bash
-# Check project status
-make status
-
-# Show environment information
-make env-info
-
-# Show all available commands
-make help
+```bibtex
+@software{llm_libration,
+  title={LLM Libration: AI-Powered Analysis of Resonant Angle Libration Patterns},
+  author={Your Name},
+  year={2024},
+  url={https://github.com/your-username/llm-libration}
+}
 ```

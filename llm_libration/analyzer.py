@@ -1,102 +1,56 @@
 """Main analyzer module for resonant angle libration detection."""
 
-import os
-import base64
 from pathlib import Path
 from typing import Union
 
-from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage
-from dotenv import load_dotenv
-from PIL import Image
-
 from .types import ResonanceType
 from .exceptions import ImageAnalysisError, LLMResponseError, ConfigurationError
+from .config import config
+from .llm import LLMClient
 
 
-class ResonanceAnalyzer:
+class LibrationAnalyzer:
     """Analyzer for detecting libration patterns in resonant angle plots using LLMs."""
 
-    PROMPT_TEMPLATE = (
-        """I want you to act a scientist–astronomer. You will get an image uploaded. """
-        """The image contains the plot of the resonant angle of an asteroid vs time (from 0 to 100000 years). """
-        """The limits of OY axis are -pi and pi. The resonant angle cannot exceed these limits.
-
-It is known that if the resonant angle librates, then the asteroid is trapped in the resonance. """
-        """Librations mean oscillations, like sine. It means that the curve is within some limits (i.e., +2, or +1) """
-        """and does not come close to the borders (-pi and pi).
-
-The opposite situation is when the resonant angle circulates. """
-        """It means that the curve is not limited and can reach the borders of the plot. """
-        """In our case, if the resonant angle is greater than pi or less than -pi, then we add or substract 2pi to the """
-        """resonant angle to make it within the limits. Therefore, in the case of circulation, the pattern will be """
-        """like linear curves parallel each other.
-
-I want you to assess visually whether the resonant angle librates if you were a human looking at this image.
-
-There are three possible cases:
-
-1. The resonant angle librates all the time (from 0 to 100000). Then you should reply 'pure'.
-2. The resonant angle could librate some significant time, but in other time is circulates. """
-        """Let's assume that by significant I mean 20000 years. In this case, you should write 'transient'.
-3. Otherwise, when the resonant angle circulates most of the time, please write 'non-resonant'.
-
-As output, I want you only to print one word: pure, transient, or non-resonant. """
-        """If you are not sure, write 'I do not know'. You will get tips if you perform the identification correctly."""
-    )
-
-    def __init__(self, model_name: str = "gpt-4-vision-preview", temperature: float = 0.0):
+    def __init__(self, model_name: str = None, provider: str = None):
         """
-        Initialize the ResonanceAnalyzer.
+        Initialize the LibrationAnalyzer.
 
         Args:
-            model_name: Name of the OpenAI model to use
-            temperature: Temperature parameter for the LLM
+            model_name: Name of the model to use (defaults to config value for current provider)
+            provider: LLM provider to use (defaults to config value)
         """
-        # Load environment variables
-        load_dotenv()
+        # Validate configuration
+        config.validate_required_env_vars()
 
-        # Check for required API key
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ConfigurationError(
-                "OPENAI_API_KEY not found in environment variables. " "Please create a .env file with your OpenAI API key."
+        # Use config defaults if not provided
+        provider = provider or config.llm_provider
+
+        # Get provider-specific configuration
+        api_key = ""
+        base_url = ""
+        if provider == "openai":
+            api_key, model_name = config.openai_api_key, model_name or config.openai_model_name
+        elif provider == "anthropic":
+            api_key, model_name = config.anthropic_api_key, model_name or config.anthropic_model_name
+        elif provider == "openrouter":
+            api_key, model_name, base_url = (
+                config.openrouter_api_key,
+                model_name or config.openrouter_model_name,
+                config.openrouter_base_url,
             )
+        elif provider == "ollama":
+            model_name, base_url = model_name or config.ollama_model_name, config.ollama_base_url
+        else:
+            raise ConfigurationError(f"Unsupported provider: {provider}")
 
-        self.llm = ChatOpenAI(
-            model=model_name,
-            temperature=temperature,
-            max_tokens=50,  # We only expect a single word response
+        # Initialize the LLM client
+        self.llm_client = LLMClient(
+            provider=provider,
+            model_name=model_name,
+            api_key=api_key,
+            base_url=base_url,
         )
-
-    def _encode_image(self, image_path: Union[str, Path]) -> str:
-        """
-        Encode image to base64 string.
-
-        Args:
-            image_path: Path to the image file
-
-        Returns:
-            Base64 encoded image string
-
-        Raises:
-            ImageAnalysisError: If image cannot be loaded or encoded
-        """
-        try:
-            image_path = Path(image_path)
-            if not image_path.exists():
-                raise ImageAnalysisError(f"Image file not found: {image_path}")
-
-            # Verify it's a valid image
-            with Image.open(image_path) as img:
-                img.verify()
-
-            # Read and encode the image
-            with open(image_path, "rb") as image_file:
-                return base64.b64encode(image_file.read()).decode('utf-8')
-
-        except Exception as e:
-            raise ImageAnalysisError(f"Failed to encode image {image_path}: {str(e)}")
 
     def _parse_llm_response(self, response: str) -> ResonanceType:
         """
@@ -113,6 +67,7 @@ As output, I want you only to print one word: pure, transient, or non-resonant. 
         """
         response = response.strip().lower()
 
+        # Check for exact matches first
         if response == "pure":
             return ResonanceType.RESONANT
         elif response == "transient":
@@ -121,6 +76,17 @@ As output, I want you only to print one word: pure, transient, or non-resonant. 
             return ResonanceType.NON_RESONANT
         elif response == "i do not know":
             return ResonanceType.CONTROVERSIAL  # Treat uncertainty as controversial
+
+        # Handle cases where the response contains the keyword but with additional text
+        # (common with Ollama or when additional notes are included)
+        elif response.startswith("pure"):
+            return ResonanceType.RESONANT
+        elif response.startswith("transient"):
+            return ResonanceType.CONTROVERSIAL
+        elif response.startswith("non-resonant"):
+            return ResonanceType.NON_RESONANT
+        elif response.startswith("i do not know"):
+            return ResonanceType.CONTROVERSIAL
         else:
             raise LLMResponseError(f"Unexpected LLM response: {response}")
 
@@ -140,25 +106,9 @@ As output, I want you only to print one word: pure, transient, or non-resonant. 
             ConfigurationError: If configuration is missing
         """
         try:
-            # Encode the image
-            base64_image = self._encode_image(image_path)
-
-            # Create the message with image
-            message = HumanMessage(
-                content=[
-                    {"type": "text", "text": self.PROMPT_TEMPLATE},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}", "detail": "high"}},
-                ]
-            )
-
-            # Get response from LLM
-            response = self.llm.invoke([message])
-
-            # Parse and return the result
-            return self._parse_llm_response(response.content)
-
+            raw_response = self.llm_client.analyze_image_with_prompt(image_path, config.prompt_template)
+            return self._parse_llm_response(raw_response)
         except (ImageAnalysisError, LLMResponseError, ConfigurationError):
-            # Re-raise our custom exceptions
             raise
         except Exception as e:
             raise ImageAnalysisError(f"Unexpected error during image analysis: {str(e)}")
