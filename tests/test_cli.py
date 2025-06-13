@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import pytest
 from click.testing import CliRunner
+import numpy as np
 
 from llm_libration.cli import main, plot, run, analyze_multiple_images
 
@@ -69,27 +70,27 @@ class TestCLI:
         """Test the plot command help."""
         result = runner.invoke(main, ['plot', '--help'])
         assert result.exit_code == 0
-        assert 'Create a plot from CSV data' in result.output
+        assert 'Create plot(s) from CSV data' in result.output
         assert '--x-column' in result.output
         assert '--y-column' in result.output
         assert '--output-file' in result.output
 
     def test_plot_success(self, runner, sample_csv_file):
         """Test successful plot creation."""
-        with patch('llm_libration.cli.create_plot') as mock_create_plot:
-            mock_create_plot.return_value = '/path/to/output.png'
+        with patch('llm_libration.cli.create_plots_from_input') as mock_create_plots:
+            mock_create_plots.return_value = '/path/to/output.png'
 
             result = runner.invoke(main, ['plot', sample_csv_file])
 
             assert result.exit_code == 0
             assert 'Plot created successfully' in result.output
             assert '/path/to/output.png' in result.output
-            mock_create_plot.assert_called_once()
+            mock_create_plots.assert_called_once()
 
     def test_plot_with_options(self, runner, sample_csv_file):
         """Test plot command with custom options."""
-        with patch('llm_libration.cli.create_plot') as mock_create_plot:
-            mock_create_plot.return_value = '/path/to/custom.png'
+        with patch('llm_libration.cli.create_plots_from_input') as mock_create_plots:
+            mock_create_plots.return_value = '/path/to/custom.png'
 
             result = runner.invoke(
                 main,
@@ -110,8 +111,8 @@ class TestCLI:
             )
 
             assert result.exit_code == 0
-            mock_create_plot.assert_called_once_with(
-                input_file=Path(sample_csv_file), x_column='time', y_column='data', output_file=Path('custom.png'), y_min=-1.0, y_max=10.0
+            mock_create_plots.assert_called_once_with(
+                input_path=Path(sample_csv_file), x_column='time', y_column='data', output_file=Path('custom.png'), y_min=-1.0, y_max=10.0
             )
 
     def test_plot_file_not_found(self, runner):
@@ -121,13 +122,28 @@ class TestCLI:
 
     def test_plot_error_handling(self, runner, sample_csv_file):
         """Test plot command error handling."""
-        with patch('llm_libration.cli.create_plot') as mock_create_plot:
-            mock_create_plot.side_effect = ValueError("Test error")
+        with patch('llm_libration.cli.create_plots_from_input') as mock_create_plots:
+            mock_create_plots.side_effect = ValueError("Test error")
 
             result = runner.invoke(main, ['plot', sample_csv_file])
 
             assert result.exit_code == 1
-            assert 'Error creating plot: Test error' in result.output
+            assert 'Error creating plot(s): Test error' in result.output
+
+    def test_plot_folder_processing(self, runner):
+        """Test plot command with folder input."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch('llm_libration.cli.create_plots_from_input') as mock_create_plots:
+                mock_create_plots.return_value = ['/path/to/plot1.png', '/path/to/plot2.png']
+
+                result = runner.invoke(main, ['plot', temp_dir])
+
+                assert result.exit_code == 0
+                assert 'Batch processing completed' in result.output
+                assert '2 plots created' in result.output
+                mock_create_plots.assert_called_once_with(
+                    input_path=Path(temp_dir), x_column='times', y_column='angle', output_file=None, y_min=0.0, y_max=2 * np.pi
+                )
 
     def test_run_help(self, runner):
         """Test the run command help."""

@@ -155,24 +155,35 @@ After installation, you can use `llm-libration` from the command line:
 ### Create Plots from CSV Data
 
 ```bash
-# Basic plot creation with default parameters
+# Basic plot creation with default parameters (single file)
 llm-libration plot input/463.csv
 
-# Custom plot with specific columns and output
+# Process all CSV files in a folder recursively
+llm-libration plot input/test
+
+# Custom plot with specific columns and output (single file only)
 llm-libration plot data.csv --x-column time --y-column resonance_angle --output-file my_plot.png
 
-# Custom y-axis range
+# Custom y-axis range (works for both files and folders)
 llm-libration plot data.csv --y-min -3.14 --y-max 9.42
 ```
 
 **Plot Command Options:**
 
--   `INPUT_FILE`: Path to CSV file (required)
+-   `INPUT_PATH`: Path to CSV file or folder containing CSV files (required)
 -   `--x-column`: Column for x-axis data (default: `times`)
 -   `--y-column`: Column for y-axis data (default: `angle`)
--   `--output-file`: Output PNG path (default: same as input with `.png` extension)
+-   `--output-file`: Output PNG path (only for single file input, ignored for folders)
 -   `--y-min`: Minimum y-axis value (default: `0`)
 -   `--y-max`: Maximum y-axis value (default: `2π`)
+
+**Folder Processing:**
+When a folder is provided as input, the command will:
+
+-   Recursively find all `.csv` files in the folder and subfolders
+-   Create plots for each CSV file found
+-   Save PNG files in the same directories as their corresponding CSV files
+-   Display progress and summary information
 
 ### Analyze Images
 
@@ -224,6 +235,34 @@ class LibrationAnalyzer:
         Returns:
             ResonanceType enum (RESONANT, NON_RESONANT, or CONTROVERSIAL)
         """
+```
+
+### Plotting Functions
+
+```python
+from llm_libration.data.plot import create_plot, create_plots_from_input
+
+# Single file plotting
+def create_plot(
+    input_file: Union[str, Path],
+    x_column: str = 'times',
+    y_column: str = 'angle',
+    output_file: Optional[Union[str, Path]] = None,
+    y_min: float = 0,
+    y_max: float = 2 * np.pi
+) -> str:
+    """Create a plot from a single CSV file."""
+
+# Unified plotting interface (files or folders)
+def create_plots_from_input(
+    input_path: Union[str, Path],
+    x_column: str = 'times',
+    y_column: str = 'angle',
+    output_file: Optional[Union[str, Path]] = None,
+    y_min: float = 0,
+    y_max: float = 2 * np.pi
+) -> Union[str, List[str]]:
+    """Create plot(s) from CSV file(s). Returns single path for files, list for folders."""
 ```
 
 ### ResonanceType

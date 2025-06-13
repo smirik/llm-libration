@@ -9,7 +9,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from llm_libration.data.plot import create_plot
+from llm_libration.data.plot import create_plot, find_csv_files, create_plots_from_folder, create_plots_from_input
 
 
 class TestCreatePlot:
@@ -291,3 +291,187 @@ class TestCreatePlot:
                 mock_ylim.assert_called_once_with(0, 2 * np.pi)
         finally:
             os.unlink(csv_path)
+
+
+class TestFolderProcessing:
+    """Test cases for folder processing functionality."""
+
+    @pytest.fixture
+    def sample_csv_data(self):
+        """Create sample CSV data for testing."""
+        return {'times': [0.0, 1.0, 2.0, 3.0, 4.0], 'angle': [0.0, 1.57, 3.14, 4.71, 6.28]}
+
+    @pytest.fixture
+    def csv_file(self, sample_csv_data):
+        """Create a temporary CSV file for testing."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            writer = csv.DictWriter(f, fieldnames=sample_csv_data.keys())
+            writer.writeheader()
+            for i in range(len(sample_csv_data['times'])):
+                row = {col: sample_csv_data[col][i] for col in sample_csv_data.keys()}
+                writer.writerow(row)
+            csv_path = f.name
+
+        yield csv_path
+
+        # Cleanup
+        os.unlink(csv_path)
+
+    @pytest.fixture
+    def temp_folder_with_csv_files(self, sample_csv_data):
+        """Create a temporary folder structure with CSV files for testing."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # Create main directory CSV files
+            for i in range(2):
+                csv_file = temp_path / f"data_{i}.csv"
+                df = pd.DataFrame(sample_csv_data)
+                df.to_csv(csv_file, index=False)
+
+            # Create subdirectory with CSV files
+            subdir = temp_path / "subdir"
+            subdir.mkdir()
+            for i in range(3):
+                csv_file = subdir / f"subdata_{i}.csv"
+                df = pd.DataFrame(sample_csv_data)
+                df.to_csv(csv_file, index=False)
+
+            # Create a file that's not CSV to ensure it's ignored
+            (temp_path / "not_csv.txt").write_text("This is not a CSV file")
+
+            yield temp_path
+
+    def test_find_csv_files(self, temp_folder_with_csv_files):
+        """Test find_csv_files function."""
+        csv_files = find_csv_files(temp_folder_with_csv_files)
+
+        # Should find 5 CSV files (2 in main dir + 3 in subdir)
+        assert len(csv_files) == 5
+
+        # All should be CSV files
+        for csv_file in csv_files:
+            assert csv_file.suffix == '.csv'
+            assert csv_file.is_file()
+
+        # Should be sorted
+        assert csv_files == sorted(csv_files)
+
+    def test_find_csv_files_nonexistent_directory(self):
+        """Test find_csv_files with non-existent directory."""
+        with pytest.raises(FileNotFoundError, match="Directory not found"):
+            find_csv_files(Path("/nonexistent/directory"))
+
+    def test_find_csv_files_not_directory(self, csv_file):
+        """Test find_csv_files with a file instead of directory."""
+        with pytest.raises(NotADirectoryError, match="Path is not a directory"):
+            find_csv_files(Path(csv_file))
+
+    def test_find_csv_files_empty_directory(self):
+        """Test find_csv_files with directory containing no CSV files."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            (temp_path / "not_csv.txt").write_text("Not a CSV")
+
+            csv_files = find_csv_files(temp_path)
+            assert len(csv_files) == 0
+
+    def test_create_plots_from_folder(self, temp_folder_with_csv_files):
+        """Test create_plots_from_folder function."""
+        with patch('llm_libration.data.plot.create_plot') as mock_create_plot:
+            mock_create_plot.return_value = "/path/to/plot.png"
+
+            result = create_plots_from_folder(temp_folder_with_csv_files, verbose=False)
+
+            # Should have created 5 plots
+            assert len(result) == 5
+
+            # create_plot should have been called 5 times
+            assert mock_create_plot.call_count == 5
+
+            # All results should be the mocked path
+            assert all(path == "/path/to/plot.png" for path in result)
+
+    def test_create_plots_from_folder_with_verbose(self, temp_folder_with_csv_files):
+        """Test create_plots_from_folder with verbose output."""
+        with patch('llm_libration.data.plot.create_plot') as mock_create_plot, patch('llm_libration.data.plot.click.echo') as mock_echo:
+
+            mock_create_plot.return_value = str(temp_folder_with_csv_files / "plot.png")
+
+            result = create_plots_from_folder(temp_folder_with_csv_files, verbose=True)
+
+            # Should have echoed progress messages
+            assert mock_echo.call_count > 0
+
+            # Check that "Found X CSV file(s)" was printed
+            found_calls = [call for call in mock_echo.call_args_list if "Found" in str(call)]
+            assert len(found_calls) > 0
+
+    def test_create_plots_from_folder_with_errors(self, temp_folder_with_csv_files):
+        """Test create_plots_from_folder handles errors gracefully."""
+        with patch('llm_libration.data.plot.create_plot') as mock_create_plot:
+            # Make some calls succeed and some fail
+            mock_create_plot.side_effect = [
+                "/path/to/plot1.png",
+                Exception("Error creating plot"),
+                "/path/to/plot2.png",
+                Exception("Another error"),
+                "/path/to/plot3.png",
+            ]
+
+            result = create_plots_from_folder(temp_folder_with_csv_files, verbose=False)
+
+            # Should return only successful plots
+            assert len(result) == 3
+            assert all(path.endswith(".png") for path in result)
+
+    def test_create_plots_from_folder_empty_directory(self):
+        """Test create_plots_from_folder with empty directory."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = create_plots_from_folder(temp_dir, verbose=False)
+            assert result == []
+
+    def test_create_plots_from_folder_nonexistent_directory(self):
+        """Test create_plots_from_folder with non-existent directory."""
+        with pytest.raises(FileNotFoundError):
+            create_plots_from_folder("/nonexistent/directory")
+
+    def test_create_plots_from_input_single_file(self, csv_file):
+        """Test create_plots_from_input with single file."""
+        with patch('llm_libration.data.plot.create_plot') as mock_create_plot:
+            mock_create_plot.return_value = "/path/to/plot.png"
+
+            result = create_plots_from_input(csv_file)
+
+            assert result == "/path/to/plot.png"
+            mock_create_plot.assert_called_once()
+
+    def test_create_plots_from_input_folder(self, temp_folder_with_csv_files):
+        """Test create_plots_from_input with folder."""
+        with patch('llm_libration.data.plot.create_plots_from_folder') as mock_create_plots:
+            mock_create_plots.return_value = ["/path/to/plot1.png", "/path/to/plot2.png"]
+
+            result = create_plots_from_input(temp_folder_with_csv_files)
+
+            assert isinstance(result, list)
+            assert len(result) == 2
+            mock_create_plots.assert_called_once()
+
+    def test_create_plots_from_input_nonexistent_path(self):
+        """Test create_plots_from_input with non-existent path."""
+        with pytest.raises(FileNotFoundError, match="Input path not found"):
+            create_plots_from_input("/nonexistent/path")
+
+    def test_create_plots_from_input_folder_with_output_file_warning(self, temp_folder_with_csv_files):
+        """Test that output_file parameter is ignored for folders with warning."""
+        with patch('llm_libration.data.plot.create_plots_from_folder') as mock_create_plots, patch(
+            'llm_libration.data.plot.click.echo'
+        ) as mock_echo:
+
+            mock_create_plots.return_value = []
+
+            create_plots_from_input(temp_folder_with_csv_files, output_file="ignored.png")
+
+            # Should print warning about ignored output_file
+            warning_calls = [call for call in mock_echo.call_args_list if "Warning" in str(call)]
+            assert len(warning_calls) > 0
