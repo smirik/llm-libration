@@ -30,7 +30,20 @@ No additional packages are required!
 
 ## Quick Start
 
-### Basic Usage with OpenAI (default)
+### Command Line Usage
+
+```bash
+# Create a plot from CSV data
+llm-libration plot input/463.csv
+
+# Analyze an image with OpenAI (default)
+llm-libration run input/demo.png
+
+# Test all providers
+llm-libration run input/demo.png --provider all
+```
+
+### Basic Python API Usage with OpenAI (default)
 
 ```python
 from llm_libration import LibrationAnalyzer
@@ -134,6 +147,57 @@ PROMPT_TEMPLATE="Your custom analysis prompt here..."
     ollama serve
     ollama pull gemma3  # or your preferred vision model
     ```
+
+## Command Line Interface
+
+After installation, you can use `llm-libration` from the command line:
+
+### Create Plots from CSV Data
+
+```bash
+# Basic plot creation with default parameters
+llm-libration plot input/463.csv
+
+# Custom plot with specific columns and output
+llm-libration plot data.csv --x-column time --y-column resonance_angle --output-file my_plot.png
+
+# Custom y-axis range
+llm-libration plot data.csv --y-min -3.14 --y-max 9.42
+```
+
+**Plot Command Options:**
+
+-   `INPUT_FILE`: Path to CSV file (required)
+-   `--x-column`: Column for x-axis data (default: `times`)
+-   `--y-column`: Column for y-axis data (default: `angle`)
+-   `--output-file`: Output PNG path (default: same as input with `.png` extension)
+-   `--y-min`: Minimum y-axis value (default: `0`)
+-   `--y-max`: Maximum y-axis value (default: `2π`)
+
+### Analyze Images
+
+```bash
+# Analyze with default provider (OpenAI)
+llm-libration run input/demo.png
+
+# Analyze with specific provider
+llm-libration run input/demo.png --provider anthropic
+
+# Analyze multiple images
+llm-libration run input/demo.png input/463.png --provider openai
+
+# Test all providers at once
+llm-libration run input/demo.png --provider all
+
+# Use custom model
+llm-libration run input/demo.png --provider anthropic --model claude-sonnet-4
+```
+
+**Run Command Options:**
+
+-   `IMAGE_FILES`: One or more image paths (required)
+-   `--provider`: LLM provider (`openai`, `anthropic`, `openrouter`, `ollama`, `all`) (default: `openai`)
+-   `--model`: Custom model name (optional)
 
 ## API Reference
 
