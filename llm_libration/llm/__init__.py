@@ -1,5 +1,6 @@
-"""LLM interaction modules for the LLM Libration project."""
+"""LLM module for handling image analysis and response processing."""
 
 from .client import LLMClient
+from .schema import LibrationAnalysisResult, LIBRATION_ANALYSIS_SCHEMA
 
-__all__ = ["LLMClient"]
+__all__ = ["LLMClient", "LibrationAnalysisResult", "LIBRATION_ANALYSIS_SCHEMA"]

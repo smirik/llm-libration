@@ -7,6 +7,7 @@ from .types import ResonanceType
 from .exceptions import ImageAnalysisError, LLMResponseError, ConfigurationError
 from .config import config
 from .llm import LLMClient
+from .llm.schema import LibrationAnalysisResult
 
 
 class LibrationAnalyzer:
@@ -20,13 +21,11 @@ class LibrationAnalyzer:
             model_name: Name of the model to use (defaults to config value for current provider)
             provider: LLM provider to use (defaults to config value)
         """
-        # Validate configuration
         config.validate_required_env_vars()
 
         # Use config defaults if not provided
         provider = provider or config.llm_provider
 
-        # Get provider-specific configuration
         api_key = ""
         base_url = ""
         if provider == "openai":
@@ -44,7 +43,6 @@ class LibrationAnalyzer:
         else:
             raise ConfigurationError(f"Unsupported provider: {provider}")
 
-        # Initialize the LLM client
         self.llm_client = LLMClient(
             provider=provider,
             model_name=model_name,
@@ -52,47 +50,59 @@ class LibrationAnalyzer:
             base_url=base_url,
         )
 
-    def _parse_llm_response(self, response: str) -> ResonanceType:
+    def _map_status_to_resonance_type(self, result: LibrationAnalysisResult) -> ResonanceType:
         """
-        Parse the LLM response and map it to ResonanceType.
+        Map LibrationAnalysisResult status to ResonanceType enum.
 
         Args:
-            response: Raw response from the LLM
+            result: Structured result from LLM analysis
 
         Returns:
             ResonanceType enum value
 
         Raises:
-            LLMResponseError: If response cannot be parsed
+            LLMResponseError: If status cannot be mapped
         """
-        response = response.strip().lower()
+        status_mapping = {
+            "resonant": ResonanceType.RESONANT,
+            "non-resonant": ResonanceType.NON_RESONANT,
+            "transient": ResonanceType.CONTROVERSIAL,
+            "controversial": ResonanceType.CONTROVERSIAL,
+        }
 
-        # Check for exact matches first
-        if response == "pure":
-            return ResonanceType.RESONANT
-        elif response == "transient":
-            return ResonanceType.CONTROVERSIAL
-        elif response == "non-resonant":
-            return ResonanceType.NON_RESONANT
-        elif response == "i do not know":
-            return ResonanceType.CONTROVERSIAL  # Treat uncertainty as controversial
-
-        # Handle cases where the response contains the keyword but with additional text
-        # (common with Ollama or when additional notes are included)
-        elif response.startswith("pure"):
-            return ResonanceType.RESONANT
-        elif response.startswith("transient"):
-            return ResonanceType.CONTROVERSIAL
-        elif response.startswith("non-resonant"):
-            return ResonanceType.NON_RESONANT
-        elif response.startswith("i do not know"):
-            return ResonanceType.CONTROVERSIAL
+        if result.status in status_mapping:
+            return status_mapping[result.status]
         else:
-            raise LLMResponseError(f"Unexpected LLM response: {response}")
+            raise LLMResponseError(f"Unexpected LLM status: {result.status}")
 
-    def analyze_image(self, image_path: Union[str, Path]) -> ResonanceType:
+    def analyze_image(self, image_path: Union[str, Path]) -> LibrationAnalysisResult:
         """
-        Analyze a resonant angle plot image to determine libration type.
+        Analyze a resonant angle plot image and return detailed structured result.
+
+        Args:
+            image_path: Path to the image file containing the resonant angle plot
+
+        Returns:
+            LibrationAnalysisResult with status and subtype information
+
+        Raises:
+            ImageAnalysisError: If image cannot be processed
+            LLMResponseError: If LLM response is invalid
+            ConfigurationError: If configuration is missing
+        """
+        try:
+            result = self.llm_client.analyze_image_with_prompt(image_path, config.prompt_template)
+            return result
+        except (ImageAnalysisError, LLMResponseError, ConfigurationError):
+            raise
+        except Exception as e:
+            raise ImageAnalysisError(f"Unexpected error during image analysis: {str(e)}")
+
+    def get_resonance_type(self, image_path: Union[str, Path]) -> ResonanceType:
+        """
+        Analyze a resonant angle plot image and return the ResonanceType enum.
+
+        This is a convenience method that maps the structured result to the legacy enum.
 
         Args:
             image_path: Path to the image file containing the resonant angle plot
@@ -106,8 +116,8 @@ class LibrationAnalyzer:
             ConfigurationError: If configuration is missing
         """
         try:
-            raw_response = self.llm_client.analyze_image_with_prompt(image_path, config.prompt_template)
-            return self._parse_llm_response(raw_response)
+            result = self.analyze_image(image_path)
+            return self._map_status_to_resonance_type(result)
         except (ImageAnalysisError, LLMResponseError, ConfigurationError):
             raise
         except Exception as e:

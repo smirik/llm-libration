@@ -147,7 +147,7 @@ class Config:
     def prompt_template(self) -> str:
         """Get the prompt template from environment variables or use default."""
         default_prompt = (
-            """I want you to act a scientist–astronomer. You will get an image uploaded. """
+            """I want you to act as a scientist–astronomer. You will receive an image uploaded. """
             """The image contains the plot of the resonant angle of an asteroid vs time (from 0 to 100000 years). """
             """The limits of OY axis are -pi and pi. The resonant angle cannot exceed these limits.
 
@@ -163,15 +163,22 @@ The opposite situation is when the resonant angle circulates. """
 
 I want you to assess visually whether the resonant angle librates if you were a human looking at this image.
 
-There are three possible cases:
+There are several possible cases:
 
-1. The resonant angle librates all the time (from 0 to 100000). Then you should reply 'pure'.
-2. The resonant angle could librate some significant time, but in other time is circulates. """
-            """Let's assume that by significant I mean 20000 years. In this case, you should write 'transient'.
-3. Otherwise, when the resonant angle circulates most of the time, please write 'non-resonant'.
+1. The resonant angle librates all the time (from 0 to 100000). Then the status should be 'resonant'.
+2. The resonant angle could librate some significant time, but in other time it circulates. """
+            """Let's assume that by significant I mean 20000 years. In this case, the status should be 'transient'.
+3. Otherwise, when the resonant angle circulates most of the time, the status should be 'non-resonant'.
+4. If you are not sure or the pattern is unclear, the status should be 'controversial'.
 
-As output, I want you only to print one word: pure, transient, or non-resonant. """
-            """If you are not sure, write 'I do not know'. You will get tips if you perform the identification correctly."""
+For the subtype, please classify the specific type of behavior you observe, such as:
+- 'apocentric libration' for libration around the borders 0 and 2*pi (these images will have visible breaks but this is still the resonant case)
+- 'apocentric circulation' for circulation around the apocenter  
+- 'double libration' for complex libration patterns (there is main libration period and some secondary libration period)
+- 'circulation' for simple circulation (parallel lines)
+- or other descriptive terms that fit the observed pattern
+
+Please provide a brief explanation of your visual assessment and reasoning."""
         )
         return os.getenv("PROMPT_TEMPLATE", default_prompt)
 

@@ -1,27 +1,28 @@
-"""Tests for the LLM Client class."""
+"""Tests for LLM client functionality."""
 
+import json
 import os
-import pytest
-from unittest.mock import Mock, patch
 import tempfile
+from unittest.mock import Mock, patch
+
+import pytest
 from PIL import Image
 
-from llm_libration.llm import LLMClient
-from llm_libration.exceptions import ImageAnalysisError, LLMResponseError, ConfigurationError
+from llm_libration.exceptions import ConfigurationError, ImageAnalysisError, LLMResponseError
+from llm_libration.llm.client import LLMClient
+from llm_libration.llm.schema import LibrationAnalysisResult
 
 
 class TestLLMClient:
-    """Test cases for LLMClient class."""
+    """Test cases for LLMClient."""
 
     @pytest.fixture
     def sample_image(self):
-        """Create a temporary sample image for testing."""
+        """Create a temporary test image."""
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-            # Create a simple test image
-            img = Image.new('RGB', (100, 100), color='white')
+            img = Image.new('RGB', (100, 100), color='red')
             img.save(f.name, 'PNG')
             yield f.name
-        # Cleanup
         os.unlink(f.name)
 
     def test_llm_client_init_openai(self):
@@ -31,7 +32,7 @@ class TestLLMClient:
             assert client is not None
             assert client.provider == "openai"
             assert client.model_name == "gpt-4"
-            mock_chat.assert_called_once_with(model="gpt-4", temperature=0.0, max_tokens=50, api_key="test-key")
+            mock_chat.assert_called_once_with(model="gpt-4", temperature=0.0, max_tokens=2000, api_key="test-key")
 
     def test_llm_client_init_anthropic(self):
         """Test LLMClient initialization with Anthropic provider."""
@@ -39,7 +40,8 @@ class TestLLMClient:
             client = LLMClient(provider="anthropic", model_name="claude-sonnet-4", api_key="test-key")
             assert client is not None
             assert client.provider == "anthropic"
-            mock_chat.assert_called_once_with(model="claude-sonnet-4", temperature=0.0, max_tokens=50, api_key="test-key")
+            assert client.model_name == "claude-sonnet-4"
+            mock_chat.assert_called_once_with(model="claude-sonnet-4", temperature=0.0, max_tokens=2000, api_key="test-key")
 
     def test_llm_client_init_openrouter(self):
         """Test LLMClient initialization with OpenRouter provider."""
@@ -52,7 +54,7 @@ class TestLLMClient:
             mock_chat.assert_called_once_with(
                 model="anthropic/claude-sonnet-4",
                 temperature=0.0,
-                max_tokens=50,
+                max_tokens=2000,
                 api_key="test-key",
                 base_url="https://openrouter.ai/api/v1",
             )
@@ -74,7 +76,7 @@ class TestLLMClient:
     def openai_client(self):
         """Create an OpenAI LLMClient instance for testing."""
         with patch('llm_libration.llm.client.ChatOpenAI'):
-            return LLMClient(provider="openai", model_name="openai/gpt-4.1", api_key="test-key")
+            return LLMClient(provider="openai", model_name="gpt-4", api_key="test-key")
 
     @pytest.fixture
     def ollama_client(self):
@@ -112,63 +114,69 @@ class TestLLMClient:
             os.unlink(f.name)
 
     def test_analyze_image_with_prompt_success_openai(self, openai_client, sample_image):
-        """Test successful image analysis with OpenAI provider."""
-        # Mock the LLM response
-        mock_response = Mock()
-        mock_response.content = "pure"
-        openai_client.llm.invoke = Mock(return_value=mock_response)
+        """Test successful image analysis with OpenAI provider using structured output."""
+        # Mock the structured LLM result
+        mock_result = LibrationAnalysisResult(status="resonant", subtype="apocentric libration")
+
+        # Mock the LangChain structured output
+        mock_structured_llm = Mock()
+        mock_structured_llm.invoke.return_value = mock_result
+
+        openai_client.llm.with_structured_output = Mock(return_value=mock_structured_llm)
 
         result = openai_client.analyze_image_with_prompt(sample_image, "test prompt")
 
-        assert result == "pure"
-        openai_client.llm.invoke.assert_called_once()
+        assert isinstance(result, LibrationAnalysisResult)
+        assert result.status == "resonant"
+        assert result.subtype == "apocentric libration"
+        openai_client.llm.with_structured_output.assert_called_once_with(LibrationAnalysisResult)
 
     def test_analyze_image_with_prompt_success_ollama(self, ollama_client, sample_image):
-        """Test successful image analysis with Ollama using direct client."""
-        # Mock the direct ollama response
-        mock_response = {'message': {'content': 'pure'}}
+        """Test successful image analysis with Ollama using structured output."""
+        # Mock the structured JSON response
+        mock_response = {'message': {'content': '{"status": "resonant", "subtype": "apocentric libration"}'}}
         ollama_client.ollama_client.chat = Mock(return_value=mock_response)
 
         result = ollama_client.analyze_image_with_prompt(sample_image, "test prompt")
 
-        assert result == "pure"
-        ollama_client.ollama_client.chat.assert_called_once()
-
-        # Verify the call was made with correct parameters
-        call_args = ollama_client.ollama_client.chat.call_args
-        assert call_args[1]['model'] == "gemma3"
-        assert call_args[1]['messages'][0]['role'] == 'user'
-        assert call_args[1]['messages'][0]['content'] == "test prompt"
-        assert 'images' in call_args[1]['messages'][0]
+        assert isinstance(result, LibrationAnalysisResult)
+        assert result.status == "resonant"
+        assert result.subtype == "apocentric libration"
+        ollama_client.ollama_client.chat.assert_called()
 
     def test_analyze_image_with_prompt_ollama_fallback_to_base64(self, ollama_client, sample_image):
-        """Test Ollama direct client falling back to base64 encoding."""
-        # Mock the first call to fail (direct path), second to succeed (base64)
-        mock_response = {'message': {'content': 'pure'}}
+        """Test Ollama client falling back to base64 encoding."""
+        # Mock responses for different fallback attempts
+        mock_response = {'message': {'content': '{"status": "non-resonant", "subtype": "circulation"}'}}
 
-        # Create a side effect that raises on first call, succeeds on second
         def side_effect(*args, **kwargs):
-            if 'images' in kwargs['messages'][0]:
-                images = kwargs['messages'][0]['images']
-                if images and not images[0].startswith('data:') and len(images[0]) < 200:
-                    # This looks like a file path, simulate failure
-                    raise Exception("File path not supported")
+            # Simulate first calls failing, last succeeding
+            if hasattr(side_effect, 'call_count'):
+                side_effect.call_count += 1
+            else:
+                side_effect.call_count = 1
+
+            if side_effect.call_count < 3:
+                raise Exception("Structured format not supported")
             return mock_response
 
         ollama_client.ollama_client.chat = Mock(side_effect=side_effect)
 
         result = ollama_client.analyze_image_with_prompt(sample_image, "test prompt")
 
-        assert result == "pure"
-        # Should be called twice - once with path, once with base64
-        assert ollama_client.ollama_client.chat.call_count == 2
+        assert isinstance(result, LibrationAnalysisResult)
+        assert result.status == "non-resonant"
+        assert result.subtype == "circulation"
+        assert ollama_client.ollama_client.chat.call_count == 3
 
     def test_analyze_image_with_prompt_llm_error(self, openai_client, sample_image):
         """Test image analysis with LLM error."""
-        # Mock the LLM to raise an exception
-        openai_client.llm.invoke = Mock(side_effect=Exception("LLM API error"))
+        # Mock the LangChain structured output to raise an exception
+        mock_structured_llm = Mock()
+        mock_structured_llm.invoke.side_effect = Exception("API error")
+        openai_client.llm.with_structured_output = Mock(return_value=mock_structured_llm)
 
-        with pytest.raises(LLMResponseError, match="LLM interaction failed"):
+        with pytest.raises(LLMResponseError, match="Openai structured analysis failed"):
             openai_client.analyze_image_with_prompt(sample_image, "test prompt")
 
     def test_analyze_image_with_prompt_image_error(self, openai_client):
@@ -177,16 +185,16 @@ class TestLLMClient:
             openai_client.analyze_image_with_prompt("nonexistent.png", "test prompt")
 
     def test_ollama_vision_analysis_failure(self, ollama_client, sample_image):
-        """Test Ollama direct client when both path and base64 approaches fail."""
-        # Mock both calls to fail
+        """Test Ollama client when all approaches fail."""
+        # Mock all calls to fail
         ollama_client.ollama_client.chat = Mock(side_effect=Exception("Vision analysis failed"))
 
-        with pytest.raises(LLMResponseError, match="Ollama vision analysis failed"):
+        with pytest.raises(LLMResponseError, match="Ollama structured analysis failed"):
             ollama_client.analyze_image_with_prompt(sample_image, "test prompt")
 
-    def test_anthropic_client_message_format(self):
-        """Test that Anthropic client uses correct message format."""
-        with patch('llm_libration.llm.client.ChatAnthropic') as mock_anthropic:
+    def test_anthropic_client_structured_output(self):
+        """Test that Anthropic client uses LangChain structured output."""
+        with patch('llm_libration.llm.client.ChatAnthropic'):
             client = LLMClient(provider="anthropic", model_name="claude-sonnet-4", api_key="test-key")
 
             # Create a test image
@@ -194,18 +202,33 @@ class TestLLMClient:
                 img = Image.new('RGB', (100, 100), color='white')
                 img.save(f.name, 'PNG')
 
-                # Mock the response
-                mock_response = Mock()
-                mock_response.content = "pure"
-                client.llm.invoke = Mock(return_value=mock_response)
+                # Mock the structured LLM result
+                mock_result = LibrationAnalysisResult(status="transient", subtype="mixed behavior")
+
+                mock_structured_llm = Mock()
+                mock_structured_llm.invoke.return_value = mock_result
+                client.llm.with_structured_output = Mock(return_value=mock_structured_llm)
 
                 result = client.analyze_image_with_prompt(f.name, "test prompt")
 
-                assert result == "pure"
-                # Verify that invoke was called with HumanMessage format
-                client.llm.invoke.assert_called_once()
-                call_args = client.llm.invoke.call_args[0][0]
-                assert len(call_args) == 1  # Should be a list with one HumanMessage
+                assert isinstance(result, LibrationAnalysisResult)
+                assert result.status == "transient"
+                assert result.subtype == "mixed behavior"
+                client.llm.with_structured_output.assert_called_once_with(LibrationAnalysisResult)
 
-                # Cleanup
                 os.unlink(f.name)
+
+    def test_structured_output_method(self, openai_client, sample_image):
+        """Test the structured output method returns proper LibrationAnalysisResult."""
+        # Mock the structured LLM result
+        mock_result = LibrationAnalysisResult(status="controversial", subtype="unclear pattern")
+
+        mock_structured_llm = Mock()
+        mock_structured_llm.invoke.return_value = mock_result
+        openai_client.llm.with_structured_output = Mock(return_value=mock_structured_llm)
+
+        result = openai_client.analyze_image_with_prompt(sample_image, "test prompt")
+
+        assert isinstance(result, LibrationAnalysisResult)
+        assert result.status == "controversial"
+        assert result.subtype == "unclear pattern"

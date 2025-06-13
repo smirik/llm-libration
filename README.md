@@ -51,9 +51,10 @@ from llm_libration import LibrationAnalyzer
 # Initialize analyzer (uses OpenAI by default)
 analyzer = LibrationAnalyzer()
 
-# Analyze an image
+# Analyze an image - returns detailed structured result
 result = analyzer.analyze_image("path/to/resonance_plot.png")
-print(f"Resonance type: {result}")  # Output: ResonanceType.RESONANT
+print(f"Status: {result.status}")  # Output: resonant
+print(f"Subtype: {result.subtype}")  # Output: apocentric libration
 ```
 
 ### Using Different Providers
@@ -262,9 +263,20 @@ class LibrationAnalyzer:
             provider: Override the default provider (openai, anthropic, openrouter, ollama)
         """
 
-    def analyze_image(self, image_path: Union[str, Path]) -> ResonanceType:
+    def analyze_image(self, image_path: Union[str, Path]) -> LibrationAnalysisResult:
         """
-        Analyze a resonance plot image.
+        Analyze a resonance plot image and return detailed structured result.
+
+        Args:
+            image_path: Path to the image file
+
+        Returns:
+            LibrationAnalysisResult with status and subtype information
+        """
+
+    def get_resonance_type(self, image_path: Union[str, Path]) -> ResonanceType:
+        """
+        Analyze a resonance plot image and return the ResonanceType enum.
 
         Args:
             image_path: Path to the image file
@@ -302,6 +314,16 @@ def create_plots_from_input(
     """Create plot(s) from CSV file(s). Returns single path for files, list for folders."""
 ```
 
+### LibrationAnalysisResult
+
+```python
+from llm_libration.llm.schema import LibrationAnalysisResult
+
+class LibrationAnalysisResult:
+    status: str    # "resonant", "non-resonant", "transient", or "controversial"
+    subtype: str   # Detailed description like "apocentric libration", "circulation", etc.
+```
+
 ### ResonanceType
 
 ```python
@@ -335,6 +357,7 @@ from llm_libration.exceptions import (
 
 try:
     result = analyzer.analyze_image("plot.png")
+    print(f"Status: {result.status}, Subtype: {result.subtype}")
 except ImageAnalysisError as e:
     print(f"Image processing failed: {e}")
 except LLMResponseError as e:

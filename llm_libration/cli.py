@@ -54,7 +54,6 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
     click.echo(f"⏰ Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     click.echo()
 
-    # Find all PNG files
     png_files = find_png_files(benchmark_dir)
 
     if not png_files:
@@ -64,7 +63,6 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
     click.echo(f"🖼️  Found {len(png_files)} PNG files to analyze")
     click.echo()
 
-    # Initialize analyzer
     try:
         if model_name:
             analyzer = LibrationAnalyzer(provider=provider, model_name=model_name)
@@ -74,14 +72,12 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
         click.echo(f"❌ Failed to initialize analyzer: {e}")
         sys.exit(1)
 
-    # Process each file
     results = []
     success_count = 0
 
     for i, png_file in enumerate(png_files, 1):
         relative_path = png_file.relative_to(benchmark_dir)
 
-        # Determine expected result based on folder structure
         folder_parts = relative_path.parts
         if len(folder_parts) > 0:
             expected_type = map_folder_to_expected_result(folder_parts[0])
@@ -91,8 +87,7 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
         click.echo(f"[{i:2d}/{len(png_files)}] Processing: {relative_path}")
 
         try:
-            # Analyze the image
-            actual_type = analyzer.analyze_image(png_file)
+            actual_type = analyzer.get_resonance_type(png_file)
             success_count += 1
 
             result = {
@@ -103,7 +98,6 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
             }
             results.append(result)
 
-            # Show result with emoji
             match_emoji = "✅" if expected_type == actual_type else "❌"
             click.echo(f"    {match_emoji} Expected: {expected_type.value}, Got: {actual_type.value}")
 
@@ -120,7 +114,6 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
 
     click.echo()
 
-    # Calculate metrics
     successful_results = [r for r in results if r['actual_result'] != 'error']
     metrics = calculate_metrics(successful_results)
 
@@ -135,7 +128,6 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
         click.echo(f"⚠️  Warning: Failed to save results: {e}")
         click.echo()
 
-    # Display summary
     end_time = datetime.now()
     duration = end_time - start_time
 
@@ -222,7 +214,7 @@ def analyze_multiple_images(image_paths: List[Path], provider: str, model_name: 
                 else:
                     analyzer = LibrationAnalyzer(provider=prov)
                 result = analyzer.analyze_image(image_path)
-                click.echo(f"{prov.upper()}: {result.value}")
+                click.echo(f"{prov.upper()}: {result.status} ({result.subtype})")
             except Exception as e:
                 click.echo(f"{prov.upper()}: Error - {e}")
 
@@ -240,6 +232,9 @@ def run(image_files: tuple, provider: str, model_name: Optional[str]):
     """Run libration analysis on one or more image files.
 
     IMAGE_FILES: One or more paths to image files to analyze.
+
+    Output format: PROVIDER: status (subtype)
+    Example: OPENAI: resonant (apocentric libration)
     """
     image_paths = [Path(f) for f in image_files]
 

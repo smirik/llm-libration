@@ -16,6 +16,7 @@ from llm_libration.cli import (
     analyze_multiple_images,
 )
 from llm_libration.types import ResonanceType
+from llm_libration.llm.schema import LibrationAnalysisResult
 
 
 class TestCLI:
@@ -242,9 +243,10 @@ class TestCLI:
     def test_analyze_multiple_images_single_provider(self, sample_image_file):
         """Test analyze_multiple_images function with single provider."""
         with patch('llm_libration.cli.LibrationAnalyzer') as mock_analyzer_class, patch('llm_libration.cli.click.echo') as mock_echo:
+            from llm_libration.llm.schema import LibrationAnalysisResult
 
             mock_analyzer = MagicMock()
-            mock_analyzer.analyze_image.return_value = MagicMock(value='resonant')
+            mock_analyzer.analyze_image.return_value = LibrationAnalysisResult(status='resonant', subtype='apocentric libration')
             mock_analyzer_class.return_value = mock_analyzer
 
             analyze_multiple_images([Path(sample_image_file)], 'openai', None)
@@ -255,9 +257,10 @@ class TestCLI:
     def test_analyze_multiple_images_all_providers(self, sample_image_file):
         """Test analyze_multiple_images function with all providers."""
         with patch('llm_libration.cli.LibrationAnalyzer') as mock_analyzer_class, patch('llm_libration.cli.click.echo') as mock_echo:
+            from llm_libration.llm.schema import LibrationAnalysisResult
 
             mock_analyzer = MagicMock()
-            mock_analyzer.analyze_image.return_value = MagicMock(value='resonant')
+            mock_analyzer.analyze_image.return_value = LibrationAnalysisResult(status='resonant', subtype='apocentric libration')
             mock_analyzer_class.return_value = mock_analyzer
 
             analyze_multiple_images([Path(sample_image_file)], 'all', None)
@@ -269,9 +272,10 @@ class TestCLI:
     def test_analyze_multiple_images_with_custom_model(self, sample_image_file):
         """Test analyze_multiple_images function with custom model."""
         with patch('llm_libration.cli.LibrationAnalyzer') as mock_analyzer_class, patch('llm_libration.cli.click.echo') as mock_echo:
+            from llm_libration.llm.schema import LibrationAnalysisResult
 
             mock_analyzer = MagicMock()
-            mock_analyzer.analyze_image.return_value = MagicMock(value='resonant')
+            mock_analyzer.analyze_image.return_value = LibrationAnalysisResult(status='resonant', subtype='apocentric libration')
             mock_analyzer_class.return_value = mock_analyzer
 
             analyze_multiple_images([Path(sample_image_file)], 'anthropic', 'claude-sonnet-4')

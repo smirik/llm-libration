@@ -222,7 +222,7 @@ class TestConfig:
 
             # Check for required keywords
             assert "astronomer" in prompt
-            assert "pure" in prompt
+            assert "resonant" in prompt
             assert "transient" in prompt
             assert "non-resonant" in prompt
             assert "librat" in prompt  # libration/librates
