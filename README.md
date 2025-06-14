@@ -282,7 +282,7 @@ class LibrationAnalyzer:
             image_path: Path to the image file
 
         Returns:
-            ResonanceType enum (RESONANT, NON_RESONANT, or CONTROVERSIAL)
+            ResonanceType enum (RESONANT, NON_RESONANT, TRANSIENT, or CONTROVERSIAL)
         """
 ```
 
@@ -325,7 +325,7 @@ from llm_libration.llm.schema import (
 )
 
 class LibrationAnalysisResult:
-    status: str    # "resonant", "non-resonant", "transient", or "controversial"
+    status: ResonanceType    # ResonanceType enum (RESONANT, NON_RESONANT, TRANSIENT, or CONTROVERSIAL)
     subtype: Union[ResonantSubtype, NonResonantSubtype, TransientSubtype, str]
     # Union type: enum for known subtypes, string for controversial cases
 ```
@@ -358,14 +358,18 @@ The package provides specific enums for different categories of behavior:
 
 ```python
 # Example usage
+from llm_libration.types import ResonanceType
+
 result = analyzer.analyze_image("plot.png")
 
-# Type-safe access
-if result.status == "resonant":
+# Type-safe access with enum
+if result.status == ResonanceType.RESONANT:
     if result.subtype == ResonantSubtype.APOCENTRIC_LIBRATION:
         print("Detected apocentric libration pattern")
+elif result.status == ResonanceType.TRANSIENT:
+    print("Detected transient behavior")
 
-# String comparison still works
+# String comparison still works for subtypes
 if result.subtype == "circulation":
     print("Simple circulation detected")
 ```
@@ -378,7 +382,8 @@ from enum import Enum
 class ResonanceType(Enum):
     RESONANT = "resonant"        # Pure libration detected
     NON_RESONANT = "non-resonant" # Circulation detected
-    CONTROVERSIAL = "controversial" # Transient or uncertain behavior
+    TRANSIENT = "transient"      # Transient behavior between resonant and non-resonant
+    CONTROVERSIAL = "controversial" # Unclear or ambiguous behavior
 ```
 
 ## Provider Comparison

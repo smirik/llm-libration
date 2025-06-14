@@ -113,8 +113,8 @@ class TestBenchmarkUtilities:
         assert map_folder_to_expected_result('NON-RESONANT') == ResonanceType.NON_RESONANT
 
         # Test transient mapping
-        assert map_folder_to_expected_result('transient') == ResonanceType.CONTROVERSIAL
-        assert map_folder_to_expected_result('TRANSIENT') == ResonanceType.CONTROVERSIAL
+        assert map_folder_to_expected_result('transient') == ResonanceType.TRANSIENT
+        assert map_folder_to_expected_result('TRANSIENT') == ResonanceType.TRANSIENT
 
         # Test controversial mapping
         assert map_folder_to_expected_result('controversial') == ResonanceType.CONTROVERSIAL
@@ -128,7 +128,7 @@ class TestBenchmarkUtilities:
         # Test that partial matches work
         assert map_folder_to_expected_result('my_libration_data') == ResonanceType.RESONANT
         assert map_folder_to_expected_result('circulation_plots') == ResonanceType.NON_RESONANT
-        assert map_folder_to_expected_result('transient_behavior') == ResonanceType.CONTROVERSIAL
+        assert map_folder_to_expected_result('transient_behavior') == ResonanceType.TRANSIENT
 
     def test_calculate_metrics_perfect_classification(self):
         """Test metrics calculation with perfect classification."""
@@ -137,13 +137,14 @@ class TestBenchmarkUtilities:
             {'expected_result': 'resonant', 'actual_result': 'resonant'},
             {'expected_result': 'non-resonant', 'actual_result': 'non-resonant'},
             {'expected_result': 'non-resonant', 'actual_result': 'non-resonant'},
+            {'expected_result': 'transient', 'actual_result': 'transient'},
             {'expected_result': 'controversial', 'actual_result': 'controversial'},
         ]
 
         metrics = calculate_metrics(results)
 
-        assert metrics['total_files'] == 5
-        assert metrics['true_positives'] == 3  # 2 resonant + 1 controversial
+        assert metrics['total_files'] == 6
+        assert metrics['true_positives'] == 4  # 2 resonant + 1 transient + 1 controversial
         assert metrics['true_negatives'] == 2  # 2 non-resonant
         assert metrics['false_positives'] == 0
         assert metrics['false_negatives'] == 0
@@ -207,6 +208,24 @@ class TestBenchmarkUtilities:
         assert metrics['false_positives'] == 2  # 1 controversial->resonant + 1 non-resonant->controversial
         assert metrics['false_negatives'] == 2  # 1 controversial->non-resonant + 1 resonant->controversial
 
+    def test_calculate_metrics_transient_cases(self):
+        """Test metrics calculation with transient classifications."""
+        results = [
+            {'expected_result': 'transient', 'actual_result': 'transient'},  # TP
+            {'expected_result': 'transient', 'actual_result': 'resonant'},  # FP (transient predicted as resonant)
+            {'expected_result': 'transient', 'actual_result': 'non-resonant'},  # FN (transient predicted as non-resonant)
+            {'expected_result': 'resonant', 'actual_result': 'transient'},  # FN (resonant predicted as transient)
+            {'expected_result': 'non-resonant', 'actual_result': 'transient'},  # FP (non-resonant predicted as transient)
+        ]
+
+        metrics = calculate_metrics(results)
+
+        assert metrics['total_files'] == 5
+        assert metrics['true_positives'] == 1  # 1 correct transient
+        assert metrics['true_negatives'] == 0  # no correct non-resonant
+        assert metrics['false_positives'] == 2  # 1 transient->resonant + 1 non-resonant->transient
+        assert metrics['false_negatives'] == 2  # 1 transient->non-resonant + 1 resonant->transient
+
     def test_calculate_metrics_all_false_positives(self):
         """Test metrics calculation with all false positives (no true positives)."""
         results = [
@@ -229,12 +248,19 @@ class TestBenchmarkUtilities:
     def test_save_benchmark_results(self, benchmark_directory):
         """Test saving benchmark results to files."""
         results = [
-            {'filename': 'test1.png', 'full_path': 'libration/test1.png', 'expected_result': 'resonant', 'actual_result': 'resonant'},
+            {
+                'filename': 'test1.png',
+                'full_path': 'libration/test1.png',
+                'expected_result': 'resonant',
+                'actual_result': 'resonant',
+                'subtype': 'clear libration',
+            },
             {
                 'filename': 'test2.png',
                 'full_path': 'circulation/test2.png',
                 'expected_result': 'non-resonant',
                 'actual_result': 'non-resonant',
+                'subtype': 'circulation',
             },
         ]
 
@@ -273,6 +299,7 @@ class TestBenchmarkUtilities:
             assert csv_results[0]['filename'] == 'test1.png'
             assert csv_results[0]['expected_result'] == 'resonant'
             assert csv_results[0]['actual_result'] == 'resonant'
+            assert csv_results[0]['subtype'] == 'clear libration'
 
         # Check JSON content
         with open(json_path, 'r') as f:
@@ -286,7 +313,13 @@ class TestBenchmarkUtilities:
     def test_save_benchmark_results_default_model(self, benchmark_directory):
         """Test saving benchmark results with default model name."""
         results = [
-            {'filename': 'test.png', 'full_path': 'test/test.png', 'expected_result': 'resonant', 'actual_result': 'resonant'},
+            {
+                'filename': 'test.png',
+                'full_path': 'test/test.png',
+                'expected_result': 'resonant',
+                'actual_result': 'resonant',
+                'subtype': 'clear libration',
+            },
         ]
 
         metrics = {

@@ -40,7 +40,7 @@ def map_folder_to_expected_result(folder_name: str) -> ResonanceType:
         'libration': ResonanceType.RESONANT,
         'circulation': ResonanceType.NON_RESONANT,
         'non-resonant': ResonanceType.NON_RESONANT,
-        'transient': ResonanceType.CONTROVERSIAL,  # For now, map to controversial
+        'transient': ResonanceType.TRANSIENT,
         'controversial': ResonanceType.CONTROVERSIAL,
     }
 
@@ -87,6 +87,9 @@ def calculate_metrics(results: List[Dict]) -> Dict:
             tp += 1
         elif expected == 'non-resonant' and actual == 'non-resonant':
             tn += 1
+        elif expected == 'transient' and actual == 'transient':
+            # Transient correct predictions count as true positives
+            tp += 1
         elif expected == 'controversial' and actual == 'controversial':
             # Controversial correct predictions count as true positives
             tp += 1
@@ -94,11 +97,17 @@ def calculate_metrics(results: List[Dict]) -> Dict:
             fn += 1
         elif expected == 'non-resonant' and actual != 'non-resonant':
             fp += 1
+        elif expected == 'transient' and actual != 'transient':
+            # Transient mispredictions depend on the actual prediction
+            if actual == 'resonant':
+                fp += 1
+            else:  # actual in ['non-resonant', 'controversial']
+                fn += 1
         elif expected == 'controversial' and actual != 'controversial':
             # Controversial mispredictions depend on the actual prediction
             if actual == 'resonant':
                 fp += 1
-            else:  # actual == 'non-resonant'
+            else:  # actual in ['non-resonant', 'transient']
                 fn += 1
         else:
             # Handle other cases
@@ -154,7 +163,7 @@ def save_benchmark_results(
     csv_path = benchmark_dir / csv_filename
 
     with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-        fieldnames = ['filename', 'full_path', 'expected_result', 'actual_result']
+        fieldnames = ['filename', 'full_path', 'expected_result', 'actual_result', 'subtype']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         for result in results:

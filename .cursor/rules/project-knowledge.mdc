@@ -38,6 +38,7 @@ Makefile # common commands
 
 - Keep code clean and minimal (KISS)
 - Avoid unnecessary complications and multiple files creation
+- Do not care about backward compatibility unless it is specified explicitly
 - Update this rule file whenever making significant changes
 - Check tests when you implement anything significant
 - Use always python venv (in .venv)

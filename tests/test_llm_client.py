@@ -11,6 +11,7 @@ from PIL import Image
 from llm_libration.exceptions import ConfigurationError, ImageAnalysisError, LLMResponseError
 from llm_libration.llm.client import LLMClient
 from llm_libration.llm.schema import LibrationAnalysisResult
+from llm_libration.types import ResonanceType
 
 
 class TestLLMClient:
@@ -118,7 +119,7 @@ class TestLLMClient:
         # Mock the structured LLM result
         from llm_libration.llm.schema import ResonantSubtype
 
-        mock_result = LibrationAnalysisResult(status="resonant", subtype=ResonantSubtype.APOCENTRIC_LIBRATION)
+        mock_result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype=ResonantSubtype.APOCENTRIC_LIBRATION)
 
         # Mock the LangChain structured output
         mock_structured_llm = Mock()
@@ -129,7 +130,7 @@ class TestLLMClient:
         result = openai_client.analyze_image_with_prompt(sample_image, "test prompt")
 
         assert isinstance(result, LibrationAnalysisResult)
-        assert result.status == "resonant"
+        assert result.status == ResonanceType.RESONANT
         assert result.subtype == ResonantSubtype.APOCENTRIC_LIBRATION
         openai_client.llm.with_structured_output.assert_called_once_with(LibrationAnalysisResult)
 
@@ -142,7 +143,7 @@ class TestLLMClient:
         result = ollama_client.analyze_image_with_prompt(sample_image, "test prompt")
 
         assert isinstance(result, LibrationAnalysisResult)
-        assert result.status == "resonant"
+        assert result.status == ResonanceType.RESONANT
         assert result.subtype == "apocentric libration"  # This is a string, not enum - that's fine for JSON parsing
         ollama_client.ollama_client.chat.assert_called()
 
@@ -167,7 +168,7 @@ class TestLLMClient:
         result = ollama_client.analyze_image_with_prompt(sample_image, "test prompt")
 
         assert isinstance(result, LibrationAnalysisResult)
-        assert result.status == "non-resonant"
+        assert result.status == ResonanceType.NON_RESONANT
         assert result.subtype == "circulation"
         assert ollama_client.ollama_client.chat.call_count == 3
 
@@ -207,7 +208,7 @@ class TestLLMClient:
                 # Mock the structured LLM result
                 from llm_libration.llm.schema import TransientSubtype
 
-                mock_result = LibrationAnalysisResult(status="transient", subtype=TransientSubtype.ALTERNATING)
+                mock_result = LibrationAnalysisResult(status=ResonanceType.TRANSIENT, subtype=TransientSubtype.ALTERNATING)
 
                 mock_structured_llm = Mock()
                 mock_structured_llm.invoke.return_value = mock_result
@@ -216,7 +217,7 @@ class TestLLMClient:
                 result = client.analyze_image_with_prompt(f.name, "test prompt")
 
                 assert isinstance(result, LibrationAnalysisResult)
-                assert result.status == "transient"
+                assert result.status == ResonanceType.TRANSIENT
                 assert result.subtype == TransientSubtype.ALTERNATING
                 client.llm.with_structured_output.assert_called_once_with(LibrationAnalysisResult)
 
@@ -225,7 +226,7 @@ class TestLLMClient:
     def test_structured_output_method(self, openai_client, sample_image):
         """Test the structured output method returns proper LibrationAnalysisResult."""
         # Mock the structured LLM result
-        mock_result = LibrationAnalysisResult(status="controversial", subtype="unclear pattern")
+        mock_result = LibrationAnalysisResult(status=ResonanceType.CONTROVERSIAL, subtype="unclear pattern")
 
         mock_structured_llm = Mock()
         mock_structured_llm.invoke.return_value = mock_result
@@ -234,5 +235,5 @@ class TestLLMClient:
         result = openai_client.analyze_image_with_prompt(sample_image, "test prompt")
 
         assert isinstance(result, LibrationAnalysisResult)
-        assert result.status == "controversial"
+        assert result.status == ResonanceType.CONTROVERSIAL
         assert result.subtype == "unclear pattern"

@@ -67,43 +67,36 @@ class TestLibrationAnalyzer:
     @pytest.mark.parametrize(
         "status,expected_type",
         [
-            ("resonant", ResonanceType.RESONANT),
-            ("non-resonant", ResonanceType.NON_RESONANT),
-            ("transient", ResonanceType.CONTROVERSIAL),
-            ("controversial", ResonanceType.CONTROVERSIAL),
+            (ResonanceType.RESONANT, ResonanceType.RESONANT),
+            (ResonanceType.NON_RESONANT, ResonanceType.NON_RESONANT),
+            (ResonanceType.TRANSIENT, ResonanceType.TRANSIENT),
+            (ResonanceType.CONTROVERSIAL, ResonanceType.CONTROVERSIAL),
         ],
     )
-    def test_map_status_to_resonance_type_valid(self, openai_analyzer, status, expected_type):
-        """Test mapping of valid structured output status to ResonanceType."""
-        result = LibrationAnalysisResult(status=status, subtype="test subtype")
-        mapped_type = openai_analyzer._map_status_to_resonance_type(result)
-        assert mapped_type == expected_type
+    def test_get_resonance_type_valid(self, openai_analyzer, status, expected_type):
+        """Test that get_resonance_type returns correct ResonanceType for valid statuses."""
+        from unittest.mock import Mock
 
-    def test_map_status_to_resonance_type_invalid(self, openai_analyzer):
-        """Test mapping of invalid structured output status."""
-        # Since Pydantic validates the status field, we need to patch the method directly
-        # to test what happens when an invalid status somehow gets through
-        from llm_libration.llm.schema import LibrationAnalysisResult
+        mock_result = LibrationAnalysisResult(status=status, subtype="test subtype")
+        mock_method = Mock(return_value=mock_result)
+        openai_analyzer.llm_client.analyze_image_with_prompt = mock_method
 
-        # Create a valid result first, then monkey-patch the status
-        result = LibrationAnalysisResult(status="resonant", subtype="test subtype")
-        result.status = "invalid"  # This bypasses Pydantic validation
-
-        with pytest.raises(LLMResponseError, match="Unexpected LLM status"):
-            openai_analyzer._map_status_to_resonance_type(result)
+        result_type = openai_analyzer.get_resonance_type("test_image.png")
+        assert result_type == expected_type
+        mock_method.assert_called_once()
 
     def test_analyze_image_success_openai(self, openai_analyzer, sample_image):
         """Test successful image analysis with OpenAI."""
         # Mock the LLM client response with structured output
         from llm_libration.llm.schema import ResonantSubtype
 
-        mock_result = LibrationAnalysisResult(status="resonant", subtype=ResonantSubtype.APOCENTRIC_LIBRATION)
+        mock_result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype=ResonantSubtype.APOCENTRIC_LIBRATION)
         openai_analyzer.llm_client.analyze_image_with_prompt = Mock(return_value=mock_result)
 
         result = openai_analyzer.analyze_image(sample_image)
 
         assert isinstance(result, LibrationAnalysisResult)
-        assert result.status == "resonant"
+        assert result.status == ResonanceType.RESONANT
         assert result.subtype == ResonantSubtype.APOCENTRIC_LIBRATION
         openai_analyzer.llm_client.analyze_image_with_prompt.assert_called_once()
 
@@ -112,13 +105,13 @@ class TestLibrationAnalyzer:
         # Mock the LLM client response with structured output
         from llm_libration.llm.schema import TransientSubtype
 
-        mock_result = LibrationAnalysisResult(status="transient", subtype=TransientSubtype.ALTERNATING)
+        mock_result = LibrationAnalysisResult(status=ResonanceType.TRANSIENT, subtype=TransientSubtype.ALTERNATING)
         anthropic_analyzer.llm_client.analyze_image_with_prompt = Mock(return_value=mock_result)
 
         result = anthropic_analyzer.analyze_image(sample_image)
 
         assert isinstance(result, LibrationAnalysisResult)
-        assert result.status == "transient"
+        assert result.status == ResonanceType.TRANSIENT
         assert result.subtype == TransientSubtype.ALTERNATING
         anthropic_analyzer.llm_client.analyze_image_with_prompt.assert_called_once()
 
@@ -127,13 +120,13 @@ class TestLibrationAnalyzer:
         # Mock the LLM client response with structured output
         from llm_libration.llm.schema import NonResonantSubtype
 
-        mock_result = LibrationAnalysisResult(status="non-resonant", subtype=NonResonantSubtype.CIRCULATION)
+        mock_result = LibrationAnalysisResult(status=ResonanceType.NON_RESONANT, subtype=NonResonantSubtype.CIRCULATION)
         ollama_analyzer.llm_client.analyze_image_with_prompt = Mock(return_value=mock_result)
 
         result = ollama_analyzer.analyze_image(sample_image)
 
         assert isinstance(result, LibrationAnalysisResult)
-        assert result.status == "non-resonant"
+        assert result.status == ResonanceType.NON_RESONANT
         assert result.subtype == NonResonantSubtype.CIRCULATION
         ollama_analyzer.llm_client.analyze_image_with_prompt.assert_called_once()
 
@@ -148,38 +141,26 @@ class TestLibrationAnalyzer:
     def test_analyze_image_invalid_response(self, openai_analyzer, sample_image):
         """Test image analysis with LLM error during mapping."""
         # Mock the LLM client to return a valid result, but then patch the mapping method to fail
-        mock_result = LibrationAnalysisResult(status="resonant", subtype="test")
+        mock_result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype="test")
         openai_analyzer.llm_client.analyze_image_with_prompt = Mock(return_value=mock_result)
 
         # This test is no longer relevant since analyze_image returns the result directly
         # But we can test that it returns the expected structure
         result = openai_analyzer.analyze_image(sample_image)
         assert isinstance(result, LibrationAnalysisResult)
-        assert result.status == "resonant"
+        assert result.status == ResonanceType.RESONANT
         assert result.subtype == "test"
 
     def test_analyze_image_pathlib_path(self, openai_analyzer, sample_image):
         """Test image analysis with pathlib.Path input."""
-        mock_result = LibrationAnalysisResult(status="transient", subtype="mixed behavior")
+        mock_result = LibrationAnalysisResult(status=ResonanceType.TRANSIENT, subtype="mixed behavior")
         openai_analyzer.llm_client.analyze_image_with_prompt = Mock(return_value=mock_result)
 
         result = openai_analyzer.analyze_image(Path(sample_image))
 
         assert isinstance(result, LibrationAnalysisResult)
-        assert result.status == "transient"
+        assert result.status == ResonanceType.TRANSIENT
         assert result.subtype == "mixed behavior"
-        openai_analyzer.llm_client.analyze_image_with_prompt.assert_called_once()
-
-    def test_get_resonance_type_success(self, openai_analyzer, sample_image):
-        """Test get_resonance_type method that returns ResonanceType enum."""
-        from llm_libration.llm.schema import ResonantSubtype
-
-        mock_result = LibrationAnalysisResult(status="resonant", subtype=ResonantSubtype.APOCENTRIC_LIBRATION)
-        openai_analyzer.llm_client.analyze_image_with_prompt = Mock(return_value=mock_result)
-
-        result = openai_analyzer.get_resonance_type(sample_image)
-
-        assert result == ResonanceType.RESONANT
         openai_analyzer.llm_client.analyze_image_with_prompt.assert_called_once()
 
     def test_get_resonance_type_error(self, openai_analyzer, sample_image):

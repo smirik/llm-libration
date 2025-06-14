@@ -7,6 +7,7 @@ from llm_libration.llm.schema import (
     NonResonantSubtype,
     TransientSubtype,
 )
+from llm_libration.types import ResonanceType
 
 
 class TestSubtypeEnums:
@@ -48,33 +49,33 @@ class TestLibrationAnalysisResult:
     def test_libration_analysis_result_with_enum_subtypes(self):
         """Test LibrationAnalysisResult works with enum subtypes."""
         # Test with ResonantSubtype
-        result1 = LibrationAnalysisResult(status="resonant", subtype=ResonantSubtype.APOCENTRIC_LIBRATION)
-        assert result1.status == "resonant"
+        result1 = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype=ResonantSubtype.APOCENTRIC_LIBRATION)
+        assert result1.status == ResonanceType.RESONANT
         assert result1.subtype == ResonantSubtype.APOCENTRIC_LIBRATION
         assert result1.subtype == "apocentric libration"  # Should also work with string comparison
 
         # Test with NonResonantSubtype
-        result2 = LibrationAnalysisResult(status="non-resonant", subtype=NonResonantSubtype.CIRCULATION)
-        assert result2.status == "non-resonant"
+        result2 = LibrationAnalysisResult(status=ResonanceType.NON_RESONANT, subtype=NonResonantSubtype.CIRCULATION)
+        assert result2.status == ResonanceType.NON_RESONANT
         assert result2.subtype == NonResonantSubtype.CIRCULATION
         assert result2.subtype == "circulation"
 
         # Test with TransientSubtype
-        result3 = LibrationAnalysisResult(status="transient", subtype=TransientSubtype.ALTERNATING)
-        assert result3.status == "transient"
+        result3 = LibrationAnalysisResult(status=ResonanceType.TRANSIENT, subtype=TransientSubtype.ALTERNATING)
+        assert result3.status == ResonanceType.TRANSIENT
         assert result3.subtype == TransientSubtype.ALTERNATING
         assert result3.subtype == "alternating libration and circulation"
 
         # Test with string (for controversial cases)
-        result4 = LibrationAnalysisResult(status="controversial", subtype="unclear pattern with mixed behavior")
-        assert result4.status == "controversial"
+        result4 = LibrationAnalysisResult(status=ResonanceType.CONTROVERSIAL, subtype="unclear pattern with mixed behavior")
+        assert result4.status == ResonanceType.CONTROVERSIAL
         assert result4.subtype == "unclear pattern with mixed behavior"
 
     def test_libration_analysis_result_with_string_subtypes(self):
         """Test LibrationAnalysisResult works with string subtypes that match enum values."""
         # Test creating with string that matches enum value
-        result = LibrationAnalysisResult(status="resonant", subtype="apocentric libration")
-        assert result.status == "resonant"
+        result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype="apocentric libration")
+        assert result.status == ResonanceType.RESONANT
         assert result.subtype == "apocentric libration"
         # It should still be a string, not automatically converted to enum
         assert isinstance(result.subtype, str)
@@ -82,7 +83,7 @@ class TestLibrationAnalysisResult:
     def test_libration_analysis_result_status_validation(self):
         """Test that LibrationAnalysisResult validates status field."""
         # Valid statuses should work
-        valid_statuses = ["resonant", "non-resonant", "transient", "controversial"]
+        valid_statuses = [ResonanceType.RESONANT, ResonanceType.NON_RESONANT, ResonanceType.TRANSIENT, ResonanceType.CONTROVERSIAL]
         for status in valid_statuses:
             result = LibrationAnalysisResult(status=status, subtype="test subtype")
             assert result.status == status
@@ -94,15 +95,15 @@ class TestLibrationAnalysisResult:
     def test_libration_analysis_result_json_serialization(self):
         """Test JSON serialization and deserialization."""
         # Test with enum subtype
-        result_enum = LibrationAnalysisResult(status="resonant", subtype=ResonantSubtype.APOCENTRIC_LIBRATION)
+        result_enum = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype=ResonantSubtype.APOCENTRIC_LIBRATION)
         json_data = result_enum.model_dump()
-        assert json_data["status"] == "resonant"
+        assert json_data["status"] == ResonanceType.RESONANT  # Enum value is preserved
         assert json_data["subtype"] == ResonantSubtype.APOCENTRIC_LIBRATION
 
         # Test with string subtype
-        result_str = LibrationAnalysisResult(status="controversial", subtype="unclear pattern")
+        result_str = LibrationAnalysisResult(status=ResonanceType.CONTROVERSIAL, subtype="unclear pattern")
         json_data_str = result_str.model_dump()
-        assert json_data_str["status"] == "controversial"
+        assert json_data_str["status"] == ResonanceType.CONTROVERSIAL  # Enum value is preserved
         assert json_data_str["subtype"] == "unclear pattern"
 
     def test_get_ollama_schema(self):

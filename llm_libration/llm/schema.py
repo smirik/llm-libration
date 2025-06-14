@@ -1,8 +1,10 @@
 """JSON schema definitions for structured LLM outputs."""
 
-from typing import Literal, Union
+from typing import Union
 from pydantic import BaseModel, Field
 from enum import Enum
+
+from ..types import ResonanceType
 
 
 class ResonantSubtype(str, Enum):
@@ -36,9 +38,7 @@ class TransientSubtype(str, Enum):
 class LibrationAnalysisResult(BaseModel):
     """Structured result from libration analysis of resonant angle plots."""
 
-    status: Literal["resonant", "non-resonant", "transient", "controversial"] = Field(
-        description="Overall classification of the resonant angle behavior"
-    )
+    status: ResonanceType = Field(description="Overall classification of the resonant angle behavior")
 
     subtype: Union[ResonantSubtype, NonResonantSubtype, TransientSubtype, str] = Field(
         description="Detailed subtype classification. Use predefined enum values when possible, or string for controversial/unusual cases"

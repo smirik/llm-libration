@@ -50,31 +50,6 @@ class LibrationAnalyzer:
             base_url=base_url,
         )
 
-    def _map_status_to_resonance_type(self, result: LibrationAnalysisResult) -> ResonanceType:
-        """
-        Map LibrationAnalysisResult status to ResonanceType enum.
-
-        Args:
-            result: Structured result from LLM analysis
-
-        Returns:
-            ResonanceType enum value
-
-        Raises:
-            LLMResponseError: If status cannot be mapped
-        """
-        status_mapping = {
-            "resonant": ResonanceType.RESONANT,
-            "non-resonant": ResonanceType.NON_RESONANT,
-            "transient": ResonanceType.CONTROVERSIAL,
-            "controversial": ResonanceType.CONTROVERSIAL,
-        }
-
-        if result.status in status_mapping:
-            return status_mapping[result.status]
-        else:
-            raise LLMResponseError(f"Unexpected LLM status: {result.status}")
-
     def analyze_image(self, image_path: Union[str, Path]) -> LibrationAnalysisResult:
         """
         Analyze a resonant angle plot image and return detailed structured result.
@@ -102,7 +77,7 @@ class LibrationAnalyzer:
         """
         Analyze a resonant angle plot image and return the ResonanceType enum.
 
-        This is a convenience method that maps the structured result to the legacy enum.
+        This is a convenience method that extracts just the status from the structured result.
 
         Args:
             image_path: Path to the image file containing the resonant angle plot
@@ -117,7 +92,7 @@ class LibrationAnalyzer:
         """
         try:
             result = self.analyze_image(image_path)
-            return self._map_status_to_resonance_type(result)
+            return result.status
         except (ImageAnalysisError, LLMResponseError, ConfigurationError):
             raise
         except Exception as e:

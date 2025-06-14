@@ -75,7 +75,9 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
         click.echo(f"[{i:2d}/{len(png_files)}] Processing: {relative_path}")
 
         try:
-            actual_type = analyzer.get_resonance_type(png_file)
+            full_result = analyzer.analyze_image(png_file)
+            actual_type = full_result.status
+            subtype = full_result.subtype
             success_count += 1
 
             result = {
@@ -83,11 +85,12 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
                 'full_path': str(relative_path),
                 'expected_result': expected_type.value,
                 'actual_result': actual_type.value,
+                'subtype': str(subtype),
             }
             results.append(result)
 
             match_emoji = "✅" if expected_type == actual_type else "❌"
-            click.echo(f"    {match_emoji} Expected: {expected_type.value}, Got: {actual_type.value}")
+            click.echo(f"    {match_emoji} Expected: {expected_type.value}, Got: {actual_type.value} ({subtype})")
 
         except Exception as e:
             click.echo(f"    ❌ Error: {e}")
@@ -97,6 +100,7 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
                 'full_path': str(relative_path),
                 'expected_result': expected_type.value,
                 'actual_result': 'error',
+                'subtype': 'error',
             }
             results.append(result)
 
