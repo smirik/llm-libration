@@ -274,7 +274,7 @@ class TestCreatePlot:
 
             # Check styling parameters
             assert call_kwargs.get('linestyle') == ''
-            assert call_kwargs.get('marker') == ','
+            assert call_kwargs.get('marker') == '.'
             assert call_kwargs.get('color') == 'black'
 
     def test_create_plot_with_legend_removal(self, csv_file):

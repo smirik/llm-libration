@@ -12,7 +12,7 @@ from .analyzer import LibrationAnalyzer
 from .types import ResonanceType
 from .exceptions import LLMLibrationError, ImageAnalysisError
 from .config import config
-from .llm import LLMClient
+from .llm import LLMClient, ResonantSubtype, NonResonantSubtype, TransientSubtype
 
 __all__ = [
     "LibrationAnalyzer",
@@ -21,4 +21,7 @@ __all__ = [
     "ImageAnalysisError",
     "config",
     "LLMClient",
+    "ResonantSubtype",
+    "NonResonantSubtype",
+    "TransientSubtype",
 ]

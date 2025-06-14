@@ -4,12 +4,12 @@ A Python package for analyzing resonant angle libration patterns in astronomical
 
 ## Features
 
--   🔍 **Automated Analysis**: AI-powered detection of libration patterns in resonant angle plots
--   🌐 **Multiple LLM Providers**: Support for OpenAI, Anthropic, OpenRouter, and Ollama
--   📊 **Plot Classification**: Categorizes resonance behavior as pure, transient, or non-resonant
--   🧪 **Easy Integration**: Simple Python API for astronomy research workflows
--   ⚙️ **Configurable**: Environment-based configuration for different providers and models
--   🔒 **Type Safety**: Full type hints and comprehensive error handling
+- 🔍 **Automated Analysis**: AI-powered detection of libration patterns in resonant angle plots
+- 🌐 **Multiple LLM Providers**: Support for OpenAI, Anthropic, OpenRouter, and Ollama
+- 📊 **Plot Classification**: Categorizes resonance behavior as pure, transient, or non-resonant
+- 🧪 **Easy Integration**: Simple Python API for astronomy research workflows
+- ⚙️ **Configurable**: Environment-based configuration for different providers and models
+- 🔒 **Type Safety**: Full type hints and comprehensive error handling
 
 ## Installation
 
@@ -21,10 +21,10 @@ pip install llm-libration
 
 All LLM providers are now included by default with the installation:
 
--   **OpenAI** (via `langchain-openai`)
--   **Anthropic** (via `langchain-anthropic`)
--   **OpenRouter** (via `langchain-openai`)
--   **Ollama** (via `ollama` + `langchain-community`)
+- **OpenAI** (via `langchain-openai`)
+- **Anthropic** (via `langchain-anthropic`)
+- **OpenRouter** (via `langchain-openai`)
+- **Ollama** (via `ollama` + `langchain-community`)
 
 No additional packages are required!
 
@@ -117,10 +117,10 @@ OLLAMA_MODEL_NAME=gemma3  # Optional, this is the default
 
 **Available Ollama Vision Models:**
 
--   `gemma3` (recommended, latest model with excellent vision capabilities)
--   `llama3.2-vision` (good balance of performance and accuracy)
--   `llava` (lightweight, good for development)
--   `gemma2:2b-vision` (compact model)
+- `gemma3` (recommended, latest model with excellent vision capabilities)
+- `llama3.2-vision` (good balance of performance and accuracy)
+- `llava` (lightweight, good for development)
+- `gemma2:2b-vision` (compact model)
 
 **Note:** The package uses the `ollama` Python package for optimal vision support with automatic fallback handling.
 
@@ -135,19 +135,19 @@ PROMPT_TEMPLATE="Your custom analysis prompt here..."
 
 1. **Copy the example configuration:**
 
-    ```bash
-    cp .env.dist .env
-    ```
+   ```bash
+   cp .env.dist .env
+   ```
 
 2. **Edit `.env` with your credentials:**
    Choose your preferred provider and set the appropriate API key.
 
 3. **For Ollama users:**
    Make sure Ollama is running locally:
-    ```bash
-    ollama serve
-    ollama pull gemma3  # or your preferred vision model
-    ```
+   ```bash
+   ollama serve
+   ollama pull gemma3  # or your preferred vision model
+   ```
 
 ## Command Line Interface
 
@@ -171,20 +171,20 @@ llm-libration plot data.csv --y-min -3.14 --y-max 9.42
 
 **Plot Command Options:**
 
--   `INPUT_PATH`: Path to CSV file or folder containing CSV files (required)
--   `--x-column`: Column for x-axis data (default: `times`)
--   `--y-column`: Column for y-axis data (default: `angle`)
--   `--output-file`: Output PNG path (only for single file input, ignored for folders)
--   `--y-min`: Minimum y-axis value (default: `0`)
--   `--y-max`: Maximum y-axis value (default: `2π`)
+- `INPUT_PATH`: Path to CSV file or folder containing CSV files (required)
+- `--x-column`: Column for x-axis data (default: `times`)
+- `--y-column`: Column for y-axis data (default: `angle`)
+- `--output-file`: Output PNG path (only for single file input, ignored for folders)
+- `--y-min`: Minimum y-axis value (default: `0`)
+- `--y-max`: Maximum y-axis value (default: `2π`)
 
 **Folder Processing:**
 When a folder is provided as input, the command will:
 
--   Recursively find all `.csv` files in the folder and subfolders
--   Create plots for each CSV file found
--   Save PNG files in the same directories as their corresponding CSV files
--   Display progress and summary information
+- Recursively find all `.csv` files in the folder and subfolders
+- Create plots for each CSV file found
+- Save PNG files in the same directories as their corresponding CSV files
+- Display progress and summary information
 
 ### Analyze Images
 
@@ -207,9 +207,9 @@ llm-libration run input/demo.png --provider anthropic --model claude-sonnet-4
 
 **Run Command Options:**
 
--   `IMAGE_FILES`: One or more image paths (required)
--   `--provider`: LLM provider (`openai`, `anthropic`, `openrouter`, `ollama`, `all`) (default: `openai`)
--   `--model`: Custom model name (optional)
+- `IMAGE_FILES`: One or more image paths (required)
+- `--provider`: LLM provider (`openai`, `anthropic`, `openrouter`, `ollama`, `all`) (default: `openai`)
+- `--model`: Custom model name (optional)
 
 ### Benchmark Evaluation
 
@@ -228,25 +228,25 @@ llm-libration benchmark input/benchmark --provider openai --model gpt-4-vision-p
 
 **Benchmark Command Options:**
 
--   `BENCHMARK_DIR`: Path to directory with categorized subdirectories (required)
--   `--provider`: LLM provider (`openai`, `anthropic`, `openrouter`, `ollama`) (default: `openai`)
--   `--model`: Custom model name (optional)
+- `BENCHMARK_DIR`: Path to directory with categorized subdirectories (required)
+- `--provider`: LLM provider (`openai`, `anthropic`, `openrouter`, `ollama`) (default: `openai`)
+- `--model`: Custom model name (optional)
 
 **Benchmark Directory Structure:**
 The benchmark directory should contain categorized subdirectories:
 
--   `libration/` - Images showing resonant (libration) behavior
--   `circulation/` or `non-resonant/` - Images showing non-resonant (circulation) behavior
--   `transient/` - Images showing transient behavior (mapped to controversial)
--   `controversial/` - Images that are difficult to classify
+- `libration/` - Images showing resonant (libration) behavior
+- `circulation/` or `non-resonant/` - Images showing non-resonant (circulation) behavior
+- `transient/` - Images showing transient behavior (mapped to controversial)
+- `controversial/` - Images that are difficult to classify
 
 The command will:
 
--   Recursively find all PNG files in these directories
--   Analyze each image and compare with expected results
--   Calculate classification metrics (Accuracy, Precision, Recall, F1 Score)
--   Save detailed results in CSV and JSON formats
--   Display comprehensive performance summary
+- Recursively find all PNG files in these directories
+- Analyze each image and compare with expected results
+- Calculate classification metrics (Accuracy, Precision, Recall, F1 Score)
+- Save detailed results in CSV and JSON formats
+- Display comprehensive performance summary
 
 ## API Reference
 
@@ -317,11 +317,57 @@ def create_plots_from_input(
 ### LibrationAnalysisResult
 
 ```python
-from llm_libration.llm.schema import LibrationAnalysisResult
+from llm_libration.llm.schema import (
+    LibrationAnalysisResult,
+    ResonantSubtype,
+    NonResonantSubtype,
+    TransientSubtype
+)
 
 class LibrationAnalysisResult:
     status: str    # "resonant", "non-resonant", "transient", or "controversial"
-    subtype: str   # Detailed description like "apocentric libration", "circulation", etc.
+    subtype: Union[ResonantSubtype, NonResonantSubtype, TransientSubtype, str]
+    # Union type: enum for known subtypes, string for controversial cases
+```
+
+### Subtype Enums
+
+The package provides specific enums for different categories of behavior:
+
+**ResonantSubtype** (for status="resonant"):
+
+- `CLEAR_LIBRATION` = "clear libration"
+- `APOCENTRIC_LIBRATION` = "apocentric libration"
+- `HIGH_AMPLITUDE_LIBRATION` = "high amplitude libration"
+- `LONG_PERIOD_LIBRATION` = "long period libration"
+- `NOISY_LIBRATION` = "noisy libration"
+- `DOUBLE_LIBRATION` = "double libration"
+
+**NonResonantSubtype** (for status="non-resonant"):
+
+- `CIRCULATION` = "circulation"
+- `SPARSE_CIRCULATION` = "sparse circulation"
+- `CHAOTIC_CIRCULATION` = "chaotic circulation"
+- `MIXED_CIRCULATION` = "mixed circulation"
+
+**TransientSubtype** (for status="transient"):
+
+- `NOISY_LIBRATION_TO_CIRCULATION` = "noisy libration to circulation"
+- `APOCENTRIC_WITH_CIRCULATION` = "apocentric libration with circulation phases"
+- `ALTERNATING` = "alternating libration and circulation"
+
+```python
+# Example usage
+result = analyzer.analyze_image("plot.png")
+
+# Type-safe access
+if result.status == "resonant":
+    if result.subtype == ResonantSubtype.APOCENTRIC_LIBRATION:
+        print("Detected apocentric libration pattern")
+
+# String comparison still works
+if result.subtype == "circulation":
+    print("Simple circulation detected")
 ```
 
 ### ResonanceType
@@ -364,16 +410,6 @@ except LLMResponseError as e:
     print(f"LLM response issue: {e}")
 except ConfigurationError as e:
     print(f"Configuration problem: {e}")
-```
-
-## Backward Compatibility
-
-The original `ResonanceAnalyzer` class name is still supported:
-
-```python
-from llm_libration import ResonanceAnalyzer  # Legacy name
-
-analyzer = ResonanceAnalyzer()  # Works exactly the same
 ```
 
 ## Development

@@ -171,12 +171,28 @@ There are several possible cases:
 3. Otherwise, when the resonant angle circulates most of the time, the status should be 'non-resonant'.
 4. If you are not sure or the pattern is unclear, the status should be 'controversial'.
 
-For the subtype, please classify the specific type of behavior you observe, such as:
-- 'apocentric libration' for libration around the borders 0 and 2*pi (these images will have visible breaks but this is still the resonant case)
-- 'apocentric circulation' for circulation around the apocenter  
-- 'double libration' for complex libration patterns (there is main libration period and some secondary libration period)
-- 'circulation' for simple circulation (parallel lines)
-- or other descriptive terms that fit the observed pattern
+For the subtype, please classify the specific type of behavior you observe:
+
+RESONANT subtypes (use when status is 'resonant'):
+- 'clear libration': Clean, simple libration pattern
+- 'apocentric libration': Libration around the borders 0 and 2*pi (visible breaks but still resonant)
+- 'high amplitude libration': Large oscillations within bounds
+- 'long period libration': Slow, long-term oscillations
+- 'noisy libration': Libration with noise or irregularities
+- 'double libration': Complex libration patterns with primary and secondary periods
+
+NON-RESONANT subtypes (use when status is 'non-resonant'):
+- 'circulation': Simple circulation (parallel lines)
+- 'sparse circulation': Circulation with scattered data points
+- 'chaotic circulation': Irregular circulation patterns
+- 'mixed circulation': Circulation with some structured patterns
+
+TRANSIENT subtypes (use when status is 'transient'):
+- 'noisy libration to circulation': Transition from noisy libration to circulation
+- 'apocentric libration with circulation phases': Apocentric libration interrupted by circulation
+- 'alternating libration and circulation': Regular alternation between behaviors
+
+For controversial cases, use descriptive text that best explains the uncertain pattern.
 
 Please provide a brief explanation of your visual assessment and reasoning."""
         )

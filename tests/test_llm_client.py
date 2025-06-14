@@ -116,7 +116,9 @@ class TestLLMClient:
     def test_analyze_image_with_prompt_success_openai(self, openai_client, sample_image):
         """Test successful image analysis with OpenAI provider using structured output."""
         # Mock the structured LLM result
-        mock_result = LibrationAnalysisResult(status="resonant", subtype="apocentric libration")
+        from llm_libration.llm.schema import ResonantSubtype
+
+        mock_result = LibrationAnalysisResult(status="resonant", subtype=ResonantSubtype.APOCENTRIC_LIBRATION)
 
         # Mock the LangChain structured output
         mock_structured_llm = Mock()
@@ -128,7 +130,7 @@ class TestLLMClient:
 
         assert isinstance(result, LibrationAnalysisResult)
         assert result.status == "resonant"
-        assert result.subtype == "apocentric libration"
+        assert result.subtype == ResonantSubtype.APOCENTRIC_LIBRATION
         openai_client.llm.with_structured_output.assert_called_once_with(LibrationAnalysisResult)
 
     def test_analyze_image_with_prompt_success_ollama(self, ollama_client, sample_image):
@@ -141,7 +143,7 @@ class TestLLMClient:
 
         assert isinstance(result, LibrationAnalysisResult)
         assert result.status == "resonant"
-        assert result.subtype == "apocentric libration"
+        assert result.subtype == "apocentric libration"  # This is a string, not enum - that's fine for JSON parsing
         ollama_client.ollama_client.chat.assert_called()
 
     def test_analyze_image_with_prompt_ollama_fallback_to_base64(self, ollama_client, sample_image):
@@ -203,7 +205,9 @@ class TestLLMClient:
                 img.save(f.name, 'PNG')
 
                 # Mock the structured LLM result
-                mock_result = LibrationAnalysisResult(status="transient", subtype="mixed behavior")
+                from llm_libration.llm.schema import TransientSubtype
+
+                mock_result = LibrationAnalysisResult(status="transient", subtype=TransientSubtype.ALTERNATING)
 
                 mock_structured_llm = Mock()
                 mock_structured_llm.invoke.return_value = mock_result
@@ -213,7 +217,7 @@ class TestLLMClient:
 
                 assert isinstance(result, LibrationAnalysisResult)
                 assert result.status == "transient"
-                assert result.subtype == "mixed behavior"
+                assert result.subtype == TransientSubtype.ALTERNATING
                 client.llm.with_structured_output.assert_called_once_with(LibrationAnalysisResult)
 
                 os.unlink(f.name)
