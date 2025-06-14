@@ -40,7 +40,9 @@ class TestCreatePlot:
         """Test create_plot with default parameters."""
         with patch('matplotlib.pyplot.savefig') as mock_savefig, patch('matplotlib.pyplot.close') as mock_close, patch(
             'matplotlib.pyplot.figure'
-        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.ylim') as mock_ylim, patch(
+        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.xlim') as mock_xlim, patch(
+            'matplotlib.pyplot.ylim'
+        ) as mock_ylim, patch(
             'matplotlib.pyplot.xticks'
         ) as mock_xticks, patch(
             'matplotlib.pyplot.yticks'
@@ -62,6 +64,7 @@ class TestCreatePlot:
             # Verify matplotlib calls
             mock_figure.assert_called_once_with(figsize=(10, 6))
             mock_plot.assert_called_once()
+            mock_xlim.assert_called_once_with(0, 100000)
             mock_ylim.assert_called_once_with(0, 2 * np.pi)
             mock_xticks.assert_called_once_with([])
             mock_yticks.assert_called_once_with([])
@@ -72,7 +75,9 @@ class TestCreatePlot:
         """Test create_plot with custom column names."""
         with patch('matplotlib.pyplot.savefig') as mock_savefig, patch('matplotlib.pyplot.close') as mock_close, patch(
             'matplotlib.pyplot.figure'
-        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.ylim') as mock_ylim, patch(
+        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.xlim') as mock_xlim, patch(
+            'matplotlib.pyplot.ylim'
+        ) as mock_ylim, patch(
             'matplotlib.pyplot.xticks'
         ) as mock_xticks, patch(
             'matplotlib.pyplot.yticks'
@@ -94,6 +99,7 @@ class TestCreatePlot:
 
             # Verify other calls
             mock_figure.assert_called_once_with(figsize=(10, 6))
+            mock_xlim.assert_called_once_with(0, 100000)
             mock_ylim.assert_called_once_with(0, 2 * np.pi)
 
     def test_create_plot_custom_output_file(self, csv_file):
@@ -104,7 +110,9 @@ class TestCreatePlot:
         try:
             with patch('matplotlib.pyplot.savefig') as mock_savefig, patch('matplotlib.pyplot.close') as mock_close, patch(
                 'matplotlib.pyplot.figure'
-            ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.ylim') as mock_ylim, patch(
+            ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.xlim') as mock_xlim, patch(
+                'matplotlib.pyplot.ylim'
+            ) as mock_ylim, patch(
                 'matplotlib.pyplot.xticks'
             ) as mock_xticks, patch(
                 'matplotlib.pyplot.yticks'
@@ -132,7 +140,9 @@ class TestCreatePlot:
         """Test create_plot with custom y-axis limits."""
         with patch('matplotlib.pyplot.savefig') as mock_savefig, patch('matplotlib.pyplot.close') as mock_close, patch(
             'matplotlib.pyplot.figure'
-        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.ylim') as mock_ylim, patch(
+        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.xlim') as mock_xlim, patch(
+            'matplotlib.pyplot.ylim'
+        ) as mock_ylim, patch(
             'matplotlib.pyplot.xticks'
         ) as mock_xticks, patch(
             'matplotlib.pyplot.yticks'
@@ -150,6 +160,63 @@ class TestCreatePlot:
             result = create_plot(csv_file, y_min=custom_y_min, y_max=custom_y_max)
 
             # Verify ylim was called with custom limits
+            mock_xlim.assert_called_once_with(0, 100000)
+            mock_ylim.assert_called_once_with(custom_y_min, custom_y_max)
+
+    def test_create_plot_custom_x_limits(self, csv_file):
+        """Test create_plot with custom x-axis limits."""
+        with patch('matplotlib.pyplot.savefig') as mock_savefig, patch('matplotlib.pyplot.close') as mock_close, patch(
+            'matplotlib.pyplot.figure'
+        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.xlim') as mock_xlim, patch(
+            'matplotlib.pyplot.ylim'
+        ) as mock_ylim, patch(
+            'matplotlib.pyplot.xticks'
+        ) as mock_xticks, patch(
+            'matplotlib.pyplot.yticks'
+        ) as mock_yticks, patch(
+            'matplotlib.pyplot.gca'
+        ) as mock_gca:
+
+            mock_axes = MagicMock()
+            mock_axes.get_legend.return_value = None
+            mock_gca.return_value = mock_axes
+
+            custom_x_min = 10.0
+            custom_x_max = 50000.0
+
+            result = create_plot(csv_file, x_min=custom_x_min, x_max=custom_x_max)
+
+            # Verify xlim was called with custom limits
+            mock_xlim.assert_called_once_with(custom_x_min, custom_x_max)
+            mock_ylim.assert_called_once_with(0, 2 * np.pi)
+
+    def test_create_plot_custom_x_and_y_limits(self, csv_file):
+        """Test create_plot with custom x and y axis limits."""
+        with patch('matplotlib.pyplot.savefig') as mock_savefig, patch('matplotlib.pyplot.close') as mock_close, patch(
+            'matplotlib.pyplot.figure'
+        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.xlim') as mock_xlim, patch(
+            'matplotlib.pyplot.ylim'
+        ) as mock_ylim, patch(
+            'matplotlib.pyplot.xticks'
+        ) as mock_xticks, patch(
+            'matplotlib.pyplot.yticks'
+        ) as mock_yticks, patch(
+            'matplotlib.pyplot.gca'
+        ) as mock_gca:
+
+            mock_axes = MagicMock()
+            mock_axes.get_legend.return_value = None
+            mock_gca.return_value = mock_axes
+
+            custom_x_min = 10.0
+            custom_x_max = 50000.0
+            custom_y_min = -1.0
+            custom_y_max = 10.0
+
+            result = create_plot(csv_file, x_min=custom_x_min, x_max=custom_x_max, y_min=custom_y_min, y_max=custom_y_max)
+
+            # Verify both xlim and ylim were called with custom limits
+            mock_xlim.assert_called_once_with(custom_x_min, custom_x_max)
             mock_ylim.assert_called_once_with(custom_y_min, custom_y_max)
 
     def test_create_plot_file_not_found(self):
@@ -185,7 +252,9 @@ class TestCreatePlot:
         """Test that the plot is created with correct styling parameters."""
         with patch('matplotlib.pyplot.savefig') as mock_savefig, patch('matplotlib.pyplot.close') as mock_close, patch(
             'matplotlib.pyplot.figure'
-        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.ylim') as mock_ylim, patch(
+        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.xlim') as mock_xlim, patch(
+            'matplotlib.pyplot.ylim'
+        ) as mock_ylim, patch(
             'matplotlib.pyplot.xticks'
         ) as mock_xticks, patch(
             'matplotlib.pyplot.yticks'
@@ -212,7 +281,9 @@ class TestCreatePlot:
         """Test that legend is properly removed when it exists."""
         with patch('matplotlib.pyplot.savefig') as mock_savefig, patch('matplotlib.pyplot.close') as mock_close, patch(
             'matplotlib.pyplot.figure'
-        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.ylim') as mock_ylim, patch(
+        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.xlim') as mock_xlim, patch(
+            'matplotlib.pyplot.ylim'
+        ) as mock_ylim, patch(
             'matplotlib.pyplot.xticks'
         ) as mock_xticks, patch(
             'matplotlib.pyplot.yticks'
@@ -240,7 +311,9 @@ class TestCreatePlot:
 
         with patch('matplotlib.pyplot.savefig') as mock_savefig, patch('matplotlib.pyplot.close') as mock_close, patch(
             'matplotlib.pyplot.figure'
-        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.ylim') as mock_ylim, patch(
+        ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.xlim') as mock_xlim, patch(
+            'matplotlib.pyplot.ylim'
+        ) as mock_ylim, patch(
             'matplotlib.pyplot.xticks'
         ) as mock_xticks, patch(
             'matplotlib.pyplot.yticks'
@@ -271,7 +344,9 @@ class TestCreatePlot:
         try:
             with patch('matplotlib.pyplot.savefig') as mock_savefig, patch('matplotlib.pyplot.close') as mock_close, patch(
                 'matplotlib.pyplot.figure'
-            ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.ylim') as mock_ylim, patch(
+            ) as mock_figure, patch('matplotlib.pyplot.plot') as mock_plot, patch('matplotlib.pyplot.xlim') as mock_xlim, patch(
+                'matplotlib.pyplot.ylim'
+            ) as mock_ylim, patch(
                 'matplotlib.pyplot.xticks'
             ) as mock_xticks, patch(
                 'matplotlib.pyplot.yticks'
@@ -288,6 +363,7 @@ class TestCreatePlot:
                 # Verify the plot was created successfully
                 assert result.endswith('.png')
                 mock_plot.assert_called_once()
+                mock_xlim.assert_called_once_with(0, 100000)
                 mock_ylim.assert_called_once_with(0, 2 * np.pi)
         finally:
             os.unlink(csv_path)

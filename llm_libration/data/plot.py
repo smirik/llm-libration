@@ -16,6 +16,8 @@ def create_plot(
     x_column: str = 'times',
     y_column: str = 'angle',
     output_file: Optional[Union[str, Path]] = None,
+    x_min: float = 0,
+    x_max: float = 100000,
     y_min: float = 0,
     y_max: float = 2 * np.pi,
 ) -> str:
@@ -27,6 +29,8 @@ def create_plot(
         x_column: Name of the column to use for x-axis (default: 'times')
         y_column: Name of the column to use for y-axis (default: 'angle')
         output_file: Path for the output PNG file (default: same directory and name as input but with .png extension)
+        x_min: Minimum value for x-axis (default: 0)
+        x_max: Maximum value for x-axis (default: 100000)
         y_min: Minimum value for y-axis (default: 0)
         y_max: Maximum value for y-axis (default: 2*pi)
 
@@ -62,9 +66,10 @@ def create_plot(
 
     # Create the plot
     plt.figure(figsize=(10, 6))
-    plt.plot(data[x_column], data[y_column], linestyle='', marker=',', color='black')
+    plt.plot(data[x_column], data[y_column], linestyle='', marker='.', color='black', markersize=1)
 
-    # Set y-axis limits
+    # Set axis limits
+    plt.xlim(x_min, x_max)
     plt.ylim(y_min, y_max)
 
     # Remove ticks and legend
@@ -111,6 +116,8 @@ def create_plots_from_folder(
     input_folder: Union[str, Path],
     x_column: str = 'times',
     y_column: str = 'angle',
+    x_min: float = 0,
+    x_max: float = 100000,
     y_min: float = 0,
     y_max: float = 2 * np.pi,
     verbose: bool = True,
@@ -122,6 +129,8 @@ def create_plots_from_folder(
         input_folder: Path to the folder containing CSV files
         x_column: Name of the column to use for x-axis (default: 'times')
         y_column: Name of the column to use for y-axis (default: 'angle')
+        x_min: Minimum value for x-axis (default: 0)
+        x_max: Maximum value for x-axis (default: 100000)
         y_min: Minimum value for y-axis (default: 0)
         y_max: Maximum value for y-axis (default: 2*pi)
         verbose: Whether to print progress messages (default: True)
@@ -163,6 +172,8 @@ def create_plots_from_folder(
                 x_column=x_column,
                 y_column=y_column,
                 output_file=None,  # Use default (same directory as CSV)
+                x_min=x_min,
+                x_max=x_max,
                 y_min=y_min,
                 y_max=y_max,
             )
@@ -197,6 +208,8 @@ def create_plots_from_input(
     x_column: str = 'times',
     y_column: str = 'angle',
     output_file: Optional[Union[str, Path]] = None,
+    x_min: float = 0,
+    x_max: float = 100000,
     y_min: float = 0,
     y_max: float = 2 * np.pi,
 ) -> Union[str, List[str]]:
@@ -208,6 +221,8 @@ def create_plots_from_input(
         x_column: Name of the column to use for x-axis (default: 'times')
         y_column: Name of the column to use for y-axis (default: 'angle')
         output_file: Path for the output PNG file (only used for single file input)
+        x_min: Minimum value for x-axis (default: 0)
+        x_max: Maximum value for x-axis (default: 100000)
         y_min: Minimum value for y-axis (default: 0)
         y_max: Maximum value for y-axis (default: 2*pi)
 
@@ -224,11 +239,22 @@ def create_plots_from_input(
         raise FileNotFoundError(f"Input path not found: {input_path}")
 
     if path.is_file():
-        return create_plot(input_file=path, x_column=x_column, y_column=y_column, output_file=output_file, y_min=y_min, y_max=y_max)
+        return create_plot(
+            input_file=path,
+            x_column=x_column,
+            y_column=y_column,
+            output_file=output_file,
+            x_min=x_min,
+            x_max=x_max,
+            y_min=y_min,
+            y_max=y_max,
+        )
     elif path.is_dir():
         if output_file is not None:
             click.echo("Warning: --output-file option ignored when processing folders")
 
-        return create_plots_from_folder(input_folder=path, x_column=x_column, y_column=y_column, y_min=y_min, y_max=y_max, verbose=True)
+        return create_plots_from_folder(
+            input_folder=path, x_column=x_column, y_column=y_column, x_min=x_min, x_max=x_max, y_min=y_min, y_max=y_max, verbose=True
+        )
     else:
         raise ValueError(f"Input path is neither a file nor a directory: {input_path}")

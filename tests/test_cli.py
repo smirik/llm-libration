@@ -150,7 +150,14 @@ class TestCLI:
 
             assert result.exit_code == 0
             mock_create_plots.assert_called_once_with(
-                input_path=Path(sample_csv_file), x_column='time', y_column='data', output_file=Path('custom.png'), y_min=-1.0, y_max=10.0
+                input_path=Path(sample_csv_file),
+                x_column='time',
+                y_column='data',
+                output_file=Path('custom.png'),
+                x_min=0.0,
+                x_max=100000.0,
+                y_min=-1.0,
+                y_max=10.0,
             )
 
     def test_plot_file_not_found(self, runner):
@@ -180,7 +187,14 @@ class TestCLI:
                 assert 'Batch processing completed' in result.output
                 assert '2 plots created' in result.output
                 mock_create_plots.assert_called_once_with(
-                    input_path=Path(temp_dir), x_column='times', y_column='angle', output_file=None, y_min=0.0, y_max=2 * np.pi
+                    input_path=Path(temp_dir),
+                    x_column='times',
+                    y_column='angle',
+                    output_file=None,
+                    x_min=0.0,
+                    x_max=100000.0,
+                    y_min=0.0,
+                    y_max=2 * np.pi,
                 )
 
     def test_run_help(self, runner):
