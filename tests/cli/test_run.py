@@ -9,6 +9,7 @@ from click.testing import CliRunner
 
 from llm_libration.cli import main
 from llm_libration.cli.run import analyze_multiple_images
+from llm_libration.types import ResonanceType
 
 
 class TestRunCLI:
@@ -100,7 +101,7 @@ class TestRunCLI:
 
             mock_analyzer = MagicMock()
             mock_analyzer.analyze_image.return_value = LibrationAnalysisResult(
-                status='resonant', subtype=ResonantSubtype.APOCENTRIC_LIBRATION
+                status=ResonanceType.RESONANT, subtype=ResonantSubtype.APOCENTRIC_LIBRATION
             )
             mock_analyzer_class.return_value = mock_analyzer
 
@@ -118,7 +119,7 @@ class TestRunCLI:
 
             mock_analyzer = MagicMock()
             mock_analyzer.analyze_image.return_value = LibrationAnalysisResult(
-                status='resonant', subtype=ResonantSubtype.APOCENTRIC_LIBRATION
+                status=ResonanceType.RESONANT, subtype=ResonantSubtype.APOCENTRIC_LIBRATION
             )
             mock_analyzer_class.return_value = mock_analyzer
 
@@ -137,7 +138,7 @@ class TestRunCLI:
 
             mock_analyzer = MagicMock()
             mock_analyzer.analyze_image.return_value = LibrationAnalysisResult(
-                status='resonant', subtype=ResonantSubtype.APOCENTRIC_LIBRATION
+                status=ResonanceType.RESONANT, subtype=ResonantSubtype.APOCENTRIC_LIBRATION
             )
             mock_analyzer_class.return_value = mock_analyzer
 

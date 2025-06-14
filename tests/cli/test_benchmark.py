@@ -8,6 +8,7 @@ from click.testing import CliRunner
 
 from llm_libration.cli import main
 from llm_libration.types import ResonanceType
+from llm_libration.llm.schema import LibrationAnalysisResult, ResonantSubtype
 
 
 class TestBenchmarkCLI:
@@ -73,7 +74,8 @@ class TestBenchmarkCLI:
         """Test successful benchmark execution."""
         with patch('llm_libration.cli.benchmark.LibrationAnalyzer') as mock_analyzer_class:
             mock_analyzer = MagicMock()
-            mock_analyzer.get_resonance_type.return_value = ResonanceType.RESONANT
+            mock_result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype=ResonantSubtype.CLEAR_LIBRATION)
+            mock_analyzer.analyze_image.return_value = mock_result
             mock_analyzer_class.return_value = mock_analyzer
 
             result = runner.invoke(main, ['benchmark', str(benchmark_directory)])
@@ -85,10 +87,8 @@ class TestBenchmarkCLI:
         """Test benchmark command with custom model."""
         with patch('llm_libration.cli.benchmark.LibrationAnalyzer') as mock_analyzer_class:
             mock_analyzer = MagicMock()
-            mock_analyzer.get_resonance_type.side_effect = [
-                ResonanceType.RESONANT,
-                ResonanceType.NON_RESONANT,
-            ]
+            mock_result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype=ResonantSubtype.CLEAR_LIBRATION)
+            mock_analyzer.analyze_image.return_value = mock_result
             mock_analyzer_class.return_value = mock_analyzer
 
             result = runner.invoke(main, ['benchmark', str(benchmark_directory), '--provider', 'anthropic', '--model', 'claude-sonnet-4'])
@@ -100,7 +100,7 @@ class TestBenchmarkCLI:
         """Test benchmark command with some analysis errors."""
         with patch('llm_libration.cli.benchmark.LibrationAnalyzer') as mock_analyzer_class:
             mock_analyzer = MagicMock()
-            mock_analyzer.get_resonance_type.side_effect = Exception("Analysis error")
+            mock_analyzer.analyze_image.side_effect = Exception("Analysis error")
             mock_analyzer_class.return_value = mock_analyzer
 
             result = runner.invoke(main, ['benchmark', str(benchmark_directory)])
@@ -122,7 +122,7 @@ class TestBenchmarkCLI:
         """Test benchmark command where all analyses fail."""
         with patch('llm_libration.cli.benchmark.LibrationAnalyzer') as mock_analyzer_class:
             mock_analyzer = MagicMock()
-            mock_analyzer.get_resonance_type.side_effect = Exception("Analysis error")
+            mock_analyzer.analyze_image.side_effect = Exception("Analysis error")
             mock_analyzer_class.return_value = mock_analyzer
 
             result = runner.invoke(main, ['benchmark', str(benchmark_directory)])
@@ -137,7 +137,8 @@ class TestBenchmarkCLI:
         for provider in providers:
             with patch('llm_libration.cli.benchmark.LibrationAnalyzer') as mock_analyzer_class:
                 mock_analyzer = MagicMock()
-                mock_analyzer.get_resonance_type.return_value = ResonanceType.RESONANT
+                mock_result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype=ResonantSubtype.CLEAR_LIBRATION)
+                mock_analyzer.analyze_image.return_value = mock_result
                 mock_analyzer_class.return_value = mock_analyzer
 
                 result = runner.invoke(main, ['benchmark', str(benchmark_directory), '--provider', provider])
@@ -149,8 +150,16 @@ class TestBenchmarkCLI:
         """Test benchmark command with mixed success/error results."""
         with patch('llm_libration.cli.benchmark.LibrationAnalyzer') as mock_analyzer_class:
             mock_analyzer = MagicMock()
-            # First call succeeds, second fails
-            mock_analyzer.get_resonance_type.side_effect = [ResonanceType.RESONANT, Exception("Error")]
+            # First call succeeds, subsequent calls fail
+            mock_result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype=ResonantSubtype.CLEAR_LIBRATION)
+            mock_analyzer.analyze_image.side_effect = [
+                mock_result,
+                Exception("Error"),
+                Exception("Error"),
+                Exception("Error"),
+                Exception("Error"),
+                Exception("Error"),
+            ]
             mock_analyzer_class.return_value = mock_analyzer
 
             result = runner.invoke(main, ['benchmark', str(benchmark_directory)])
@@ -188,7 +197,8 @@ class TestBenchmarkCLI:
 
             with patch('llm_libration.cli.benchmark.LibrationAnalyzer') as mock_analyzer_class:
                 mock_analyzer = MagicMock()
-                mock_analyzer.get_resonance_type.return_value = ResonanceType.RESONANT
+                mock_result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype=ResonantSubtype.CLEAR_LIBRATION)
+                mock_analyzer.analyze_image.return_value = mock_result
                 mock_analyzer_class.return_value = mock_analyzer
 
                 result = runner.invoke(main, ['benchmark', temp_dir])
