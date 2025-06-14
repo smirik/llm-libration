@@ -143,6 +143,7 @@ class LLMClient:
         Returns:
             Structured libration analysis result
         """
+        # Use the Ollama-specific prompt template from configuration
         direct_prompt = config.ollama_prompt_template
 
         last_error = None

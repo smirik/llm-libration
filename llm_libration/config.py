@@ -130,29 +130,14 @@ class Config:
     @property
     def ollama_prompt_template(self) -> str:
         """Get Ollama-specific prompt template from environment variables."""
-        default_ollama_prompt = """Analyze this resonant angle plot. Y-axis: resonant angle (-π to +π), X-axis: time (0-100000 years).
+        default_ollama_prompt = """Look at the resonant‑angle plot (y=0–2π).
+If all points stay inside one narrow band (<0.5 of the full height) or inside two opposite narrow horizontal bands with an empty gap between them, answer “resonant”.
+If the points span most of the height—climbing in slanted stripes or scattered like pepper across the full y‑range—answer “non‑resonant”.
+Ignore a few stray outliers and reply with exactly that single lowercase word.
 
-Look for the MOST OBVIOUS pattern:
-
-1. CLEAR DIAGONAL FLOW (NON-RESONANT):
-   - Obvious slanted stripes flowing from corner to corner
-   - Data moves continuously across the full plot height
-   
-2. APOCENTRIC LIBRATION (RESONANT):
-   - Data clustered at TOP and BOTTOM edges only
-   - EMPTY space in the middle horizontal band
-   
-3. REGULAR LIBRATION (RESONANT):
-   - Data oscillates within a limited range (not reaching plot edges)
-   - Horizontal oscillating patterns
-   
-4. TRANSIENT: Behavior clearly changes over time
-
-Choose the classification that matches the MOST OBVIOUS visual pattern.
-When in doubt between apocentric libration and circulation, favor apocentric if there's any empty middle space.
-
-IMPORTANT: Respond with ONLY a JSON object:
-{"status": "resonant", "subtype": "describe the dominant pattern"}"""
+Respond with JSON format:
+{"status": "non-resonant", "subtype": "circulation"} for diagonal lines
+{"status": "resonant", "subtype": "libration"} for oscillating patterns"""
         return os.getenv("OLLAMA_PROMPT_TEMPLATE", default_ollama_prompt)
 
     # Universal properties for backward compatibility
