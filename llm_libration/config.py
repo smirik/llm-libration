@@ -125,7 +125,35 @@ class Config:
     @property
     def ollama_model_name(self) -> str:
         """Get Ollama model name from environment variables."""
-        return os.getenv("OLLAMA_MODEL_NAME", "gemma3")
+        return os.getenv("OLLAMA_MODEL_NAME", "qwen2.5vl:7b")
+
+    @property
+    def ollama_prompt_template(self) -> str:
+        """Get Ollama-specific prompt template from environment variables."""
+        default_ollama_prompt = """Analyze this resonant angle plot. Y-axis: resonant angle (-π to +π), X-axis: time (0-100000 years).
+
+Look for the MOST OBVIOUS pattern:
+
+1. CLEAR DIAGONAL FLOW (NON-RESONANT):
+   - Obvious slanted stripes flowing from corner to corner
+   - Data moves continuously across the full plot height
+   
+2. APOCENTRIC LIBRATION (RESONANT):
+   - Data clustered at TOP and BOTTOM edges only
+   - EMPTY space in the middle horizontal band
+   
+3. REGULAR LIBRATION (RESONANT):
+   - Data oscillates within a limited range (not reaching plot edges)
+   - Horizontal oscillating patterns
+   
+4. TRANSIENT: Behavior clearly changes over time
+
+Choose the classification that matches the MOST OBVIOUS visual pattern.
+When in doubt between apocentric libration and circulation, favor apocentric if there's any empty middle space.
+
+IMPORTANT: Respond with ONLY a JSON object:
+{"status": "resonant", "subtype": "describe the dominant pattern"}"""
+        return os.getenv("OLLAMA_PROMPT_TEMPLATE", default_ollama_prompt)
 
     # Universal properties for backward compatibility
     @property

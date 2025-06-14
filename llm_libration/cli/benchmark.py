@@ -6,6 +6,7 @@ from typing import Optional
 from datetime import datetime
 import click
 
+from llm_libration.config import config
 from llm_libration import LibrationAnalyzer
 from llm_libration.types import ResonanceType
 from llm_libration.benchmark import (
@@ -62,6 +63,8 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
 
     results = []
     success_count = 0
+
+    print(f"Prompt template: {config.prompt_template}")
 
     for i, png_file in enumerate(png_files, 1):
         relative_path = png_file.relative_to(benchmark_dir)

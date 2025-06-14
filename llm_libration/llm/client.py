@@ -2,6 +2,7 @@
 
 import base64
 import json
+import logging
 from pathlib import Path
 from typing import Union
 
@@ -13,6 +14,9 @@ from PIL import Image
 
 from .schema import LibrationAnalysisResult
 from ..exceptions import ImageAnalysisError, LLMResponseError, ConfigurationError
+from ..config import config
+
+logger = logging.getLogger(__name__)
 
 
 class LLMClient:
@@ -134,74 +138,131 @@ class LLMClient:
 
         Args:
             image_path: Path to the image file
-            prompt: Analysis prompt
+            prompt: Analysis prompt (ignored for Ollama, uses config template)
 
         Returns:
             Structured libration analysis result
         """
+        direct_prompt = config.ollama_prompt_template
+
+        last_error = None
+        attempts = []
+
+        # Attempt 1: Try regular JSON mode first (skip complex structured format)
         try:
-            # Enhanced prompt for structured output
-            json_prompt = f"""{prompt}
+            logger.debug(f"Ollama attempt 1: Simple JSON mode with image path: {image_path}")
+            response = self.ollama_client.chat(
+                model=self.model_name,
+                messages=[{'role': 'user', 'content': direct_prompt, 'images': [str(image_path)]}],
+            )
+            content = response['message']['content']
+            logger.debug(f"Ollama simple response: {content}")
 
-Please respond with a JSON object that matches this exact schema:
-{{
-  "status": "resonant" | "non-resonant" | "transient" | "controversial",
-  "subtype": "string describing the specific type like 'apocentric libration', 'circulation', etc."
-}}
+            # Clean up response more carefully
+            cleaned_content = self._clean_json_response(content)
+            logger.debug(f"Cleaned content: {cleaned_content}")
 
-Return only valid JSON, no additional text."""
+            parsed_data = json.loads(cleaned_content)
 
-            try:
-                # Try using structured output format if supported
-                response = self.ollama_client.chat(
-                    model=self.model_name,
-                    messages=[{'role': 'user', 'content': json_prompt, 'images': [str(image_path)]}],
-                    format=LibrationAnalysisResult.get_ollama_schema(),
-                )
-                content = response['message']['content']
-                parsed_data = json.loads(content)
-                return LibrationAnalysisResult(**parsed_data)
-            except Exception:
-                # Fallback to regular JSON mode
-                try:
-                    response = self.ollama_client.chat(
-                        model=self.model_name,
-                        messages=[{'role': 'user', 'content': json_prompt, 'images': [str(image_path)]}],
-                    )
-                    content = response['message']['content']
+            # Validate the parsed data has required fields
+            if 'status' not in parsed_data or 'subtype' not in parsed_data:
+                raise ValueError(f"Missing required fields in response: {parsed_data}")
 
-                    # Clean up response
-                    content = content.strip()
-                    if content.startswith('```json'):
-                        content = content[7:]
-                    if content.endswith('```'):
-                        content = content[:-3]
-                    content = content.strip()
-
-                    parsed_data = json.loads(content)
-                    return LibrationAnalysisResult(**parsed_data)
-                except Exception:
-                    # Try with base64 encoded image
-                    base64_image, _ = self.encode_image(image_path)
-                    response = self.ollama_client.chat(
-                        model=self.model_name,
-                        messages=[{'role': 'user', 'content': json_prompt, 'images': [base64_image]}],
-                    )
-                    content = response['message']['content']
-
-                    # Clean up response
-                    content = content.strip()
-                    if content.startswith('```json'):
-                        content = content[7:]
-                    if content.endswith('```'):
-                        content = content[:-3]
-                    content = content.strip()
-
-                    parsed_data = json.loads(content)
-                    return LibrationAnalysisResult(**parsed_data)
-
+            result = LibrationAnalysisResult(**parsed_data)
+            logger.debug(f"Successfully parsed simple result: {result}")
+            return result
         except Exception as e:
-            raise LLMResponseError(f"Ollama structured analysis failed: {str(e)}")
+            last_error = e
+            attempts.append(f"Simple JSON mode failed: {str(e)}")
+            logger.debug(f"Ollama simple JSON mode failed: {e}")
+
+        # Attempt 2: Try with base64 encoded image
+        try:
+            logger.debug(f"Ollama attempt 2: Base64 encoded image")
+            base64_image, _ = self.encode_image(image_path)
+            response = self.ollama_client.chat(
+                model=self.model_name,
+                messages=[{'role': 'user', 'content': direct_prompt, 'images': [base64_image]}],
+            )
+            content = response['message']['content']
+            logger.debug(f"Ollama base64 response: {content}")
+
+            # Clean up response more carefully
+            cleaned_content = self._clean_json_response(content)
+            logger.debug(f"Cleaned content: {cleaned_content}")
+
+            parsed_data = json.loads(cleaned_content)
+
+            # Validate the parsed data has required fields
+            if 'status' not in parsed_data or 'subtype' not in parsed_data:
+                raise ValueError(f"Missing required fields in response: {parsed_data}")
+
+            result = LibrationAnalysisResult(**parsed_data)
+            logger.debug(f"Successfully parsed base64 result: {result}")
+            return result
+        except Exception as e:
+            last_error = e
+            attempts.append(f"Base64 encoding failed: {str(e)}")
+            logger.debug(f"Ollama base64 approach failed: {e}")
+
+        # Attempt 3: Try with structured output format as last resort
+        try:
+            logger.debug(f"Ollama attempt 3: Structured format fallback with image path: {image_path}")
+            response = self.ollama_client.chat(
+                model=self.model_name,
+                messages=[{'role': 'user', 'content': direct_prompt, 'images': [str(image_path)]}],
+                format=LibrationAnalysisResult.get_ollama_schema(),
+            )
+            content = response['message']['content']
+            logger.debug(f"Ollama structured fallback response: {content}")
+            parsed_data = json.loads(content)
+            result = LibrationAnalysisResult(**parsed_data)
+            logger.debug(f"Successfully parsed structured fallback result: {result}")
+            return result
+        except Exception as e:
+            last_error = e
+            attempts.append(f"Structured format fallback failed: {str(e)}")
+            logger.debug(f"Ollama structured format fallback failed: {e}")
+
+        # All attempts failed, provide detailed error information
+        error_details = "; ".join(attempts)
+        raise LLMResponseError(
+            f"Ollama structured analysis failed after all attempts. Details: {error_details}. Last error: {str(last_error)}"
+        )
+
+    def _clean_json_response(self, content: str) -> str:
+        """
+        Clean up JSON response from LLM by removing markdown formatting.
+
+        Args:
+            content: Raw response content from LLM
+
+        Returns:
+            Cleaned JSON string
+        """
+        if not content:
+            raise ValueError("Empty response content")
+
+        content = content.strip()
+        logger.debug(f"Original content: {repr(content)}")
+
+        # Remove markdown code blocks
+        if content.startswith('```json'):
+            content = content[7:]
+        elif content.startswith('```'):
+            content = content[3:]
+
+        if content.endswith('```'):
+            content = content[:-3]
+
+        content = content.strip()
+        logger.debug(f"After markdown cleanup: {repr(content)}")
+
+        # Validate that we have something that looks like JSON
+        if not (content.startswith('{') and content.endswith('}')):
+            raise ValueError(f"Content doesn't look like JSON: {repr(content)}")
+
+        return content
 
     def analyze_image_with_prompt(self, image_path: Union[str, Path], prompt: str) -> LibrationAnalysisResult:
         """

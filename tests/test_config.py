@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 import pytest
+from dotenv import load_dotenv
 
 from llm_libration.config import Config
 from llm_libration.exceptions import ConfigurationError
@@ -137,11 +138,56 @@ class TestConfig:
             assert config.openrouter_base_url == "https://openrouter.ai/api/v1"
 
     def test_config_ollama_properties(self):
-        """Test Ollama-specific configuration properties."""
-        with patch.dict(os.environ, {"OLLAMA_BASE_URL": "http://localhost:11434", "OLLAMA_MODEL_NAME": "gemma3"}):
+        """Test that Ollama-specific configuration properties work correctly."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+            f.write("OLLAMA_BASE_URL=http://test:12345\n")
+            f.write("OLLAMA_MODEL_NAME=test-model\n")
+            f.write("OLLAMA_PROMPT_TEMPLATE=Custom test prompt for Ollama\n")
+            temp_env_file = f.name
+
+        # Store original values to restore later
+        original_values = {
+            'OLLAMA_BASE_URL': os.environ.get('OLLAMA_BASE_URL'),
+            'OLLAMA_MODEL_NAME': os.environ.get('OLLAMA_MODEL_NAME'),
+            'OLLAMA_PROMPT_TEMPLATE': os.environ.get('OLLAMA_PROMPT_TEMPLATE'),
+        }
+
+        try:
+            load_dotenv(temp_env_file, override=True)
             config = Config(load_env=False)
-            assert config.ollama_base_url == "http://localhost:11434"
-            assert config.ollama_model_name == "gemma3"
+
+            assert config.ollama_base_url == "http://test:12345"
+            assert config.ollama_model_name == "test-model"
+            assert config.ollama_prompt_template == "Custom test prompt for Ollama"
+        finally:
+            # Clean up environment variables
+            for key, value in original_values.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+            os.unlink(temp_env_file)
+
+    def test_ollama_prompt_template_default(self):
+        """Test that Ollama prompt template has a reasonable default."""
+        # Ensure clean environment for this test
+        original_template = os.environ.get('OLLAMA_PROMPT_TEMPLATE')
+        try:
+            # Remove any existing OLLAMA_PROMPT_TEMPLATE to test the default
+            os.environ.pop('OLLAMA_PROMPT_TEMPLATE', None)
+
+            config = Config(load_env=False)
+            prompt = config.ollama_prompt_template
+
+            # Check that the default prompt contains key terms
+            assert "resonant angle plot" in prompt.lower()
+            assert "diagonal flow" in prompt.lower()
+            assert "apocentric libration" in prompt.lower()
+            assert "json object" in prompt.lower()
+        finally:
+            # Restore original value if it existed
+            if original_template is not None:
+                os.environ['OLLAMA_PROMPT_TEMPLATE'] = original_template
 
     def test_config_default_model_name_by_provider(self):
         """Test that default_model_name returns correct model based on provider."""

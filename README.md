@@ -112,12 +112,13 @@ OPENROUTER_BASE_URL=https://openrouter.ai/api/v1  # Optional, this is the defaul
 ```bash
 LLM_PROVIDER=ollama
 OLLAMA_BASE_URL=http://localhost:11434  # Optional, this is the default
-OLLAMA_MODEL_NAME=gemma3  # Optional, this is the default
+OLLAMA_MODEL_NAME=qwen2.5vl:7b  # Optional, this is the default
 ```
 
 **Available Ollama Vision Models:**
 
-- `gemma3` (recommended, latest model with excellent vision capabilities)
+- `qwen2.5vl:7b` (recommended, best performance for libration vs circulation classification)
+- `gemma3:4b` (good general vision capabilities, but may struggle with circulation patterns)
 - `llama3.2-vision` (good balance of performance and accuracy)
 - `llava` (lightweight, good for development)
 - `gemma2:2b-vision` (compact model)
@@ -146,7 +147,7 @@ PROMPT_TEMPLATE="Your custom analysis prompt here..."
    Make sure Ollama is running locally:
    ```bash
    ollama serve
-   ollama pull gemma3  # or your preferred vision model
+   ollama pull qwen2.5vl:7b  # or your preferred vision model
    ```
 
 ## Command Line Interface
