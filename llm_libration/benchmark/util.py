@@ -137,6 +137,68 @@ def calculate_metrics(results: List[Dict]) -> Dict:
     }
 
 
+def calculate_relaxed_metrics(results: List[Dict]) -> Dict:
+    """
+    Calculate relaxed benchmark metrics from results with flexible acceptance criteria.
+
+    Acceptance criteria:
+    - resonant: acceptable values are resonant and controversial
+    - non-resonant: acceptable values are non-resonant, controversial, and transient
+    - transient: acceptable values are transient, resonant, and controversial
+    - controversial: any value is acceptable
+
+    Args:
+        results: List of result dictionaries
+
+    Returns:
+        Dictionary with calculated relaxed metrics
+    """
+    if not results:
+        return {
+            'total_files': 0,
+            'correct_predictions': 0,
+            'incorrect_predictions': 0,
+            'accuracy': 0.0,
+        }
+
+    correct = 0
+    incorrect = 0
+
+    for result in results:
+        expected = result['expected_result']
+        actual = result['actual_result']
+
+        is_acceptable = False
+
+        if expected == 'resonant':
+            # Acceptable: resonant, controversial
+            is_acceptable = actual in ['resonant', 'controversial']
+        elif expected == 'non-resonant':
+            # Acceptable: non-resonant, controversial, transient
+            is_acceptable = actual in ['non-resonant', 'controversial', 'transient']
+        elif expected == 'transient':
+            # Acceptable: transient, resonant, controversial
+            is_acceptable = actual in ['transient', 'resonant', 'controversial']
+        elif expected == 'controversial':
+            # Acceptable: any value
+            is_acceptable = True
+
+        if is_acceptable:
+            correct += 1
+        else:
+            incorrect += 1
+
+    total = len(results)
+    accuracy = correct / total if total > 0 else 0.0
+
+    return {
+        'total_files': total,
+        'correct_predictions': correct,
+        'incorrect_predictions': incorrect,
+        'accuracy': accuracy,
+    }
+
+
 def save_benchmark_results(
     benchmark_dir: Path, results: List[Dict], metrics: Dict, provider: str, model: Optional[str], start_time: datetime
 ) -> Tuple[Path, Path]:

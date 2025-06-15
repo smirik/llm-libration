@@ -13,6 +13,7 @@ from llm_libration.benchmark import (
     find_png_files,
     map_folder_to_expected_result,
     calculate_metrics,
+    calculate_relaxed_metrics,
     save_benchmark_results,
 )
 
@@ -111,6 +112,7 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
 
     successful_results = [r for r in results if r['actual_result'] != 'error']
     metrics = calculate_metrics(successful_results)
+    relaxed_metrics = calculate_relaxed_metrics(successful_results)
 
     # Save results
     try:
@@ -138,8 +140,8 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
     click.echo()
 
     if successful_results:
-        click.echo("📈 CLASSIFICATION METRICS")
-        click.echo("-" * 30)
+        click.echo("📈 STRICT CLASSIFICATION METRICS")
+        click.echo("-" * 40)
         click.echo(f"True Positives:  {metrics['true_positives']:3d}")
         click.echo(f"True Negatives:  {metrics['true_negatives']:3d}")
         click.echo(f"False Positives: {metrics['false_positives']:3d}")
@@ -149,5 +151,18 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
         click.echo(f"Precision: {metrics['precision']:.3f}")
         click.echo(f"Recall:    {metrics['recall']:.3f}")
         click.echo(f"F1 Score:  {metrics['f1_score']:.3f}")
+        click.echo()
+
+        click.echo("📈 RELAXED CLASSIFICATION METRICS")
+        click.echo("-" * 40)
+        click.echo("Acceptance criteria:")
+        click.echo("  • resonant → accepts: resonant, controversial")
+        click.echo("  • non-resonant → accepts: non-resonant, controversial, transient")
+        click.echo("  • transient → accepts: transient, resonant, controversial")
+        click.echo("  • controversial → accepts: any")
+        click.echo()
+        click.echo(f"Correct Predictions:   {relaxed_metrics['correct_predictions']:3d}")
+        click.echo(f"Incorrect Predictions: {relaxed_metrics['incorrect_predictions']:3d}")
+        click.echo(f"Relaxed Accuracy:      {relaxed_metrics['accuracy']:.3f}")
     else:
         click.echo("❌ No successful analyses to calculate metrics")

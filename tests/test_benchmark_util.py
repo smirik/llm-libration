@@ -11,6 +11,7 @@ from llm_libration.benchmark.util import (
     find_png_files,
     map_folder_to_expected_result,
     calculate_metrics,
+    calculate_relaxed_metrics,
     save_benchmark_results,
 )
 from llm_libration.types import ResonanceType
@@ -244,6 +245,159 @@ class TestBenchmarkUtilities:
         assert metrics['precision'] == 0.0  # 0 / (0 + 2) = 0
         assert metrics['recall'] == 0.0  # 0 / (0 + 0) = 0 (no actual positives)
         assert metrics['f1_score'] == 0.0
+
+    def test_calculate_relaxed_metrics_perfect_acceptance(self):
+        """Test relaxed metrics with all predictions being acceptable."""
+        results = [
+            # Resonant accepts: resonant, controversial
+            {'expected_result': 'resonant', 'actual_result': 'resonant'},  # Correct
+            {'expected_result': 'resonant', 'actual_result': 'controversial'},  # Acceptable
+            # Non-resonant accepts: non-resonant, controversial, transient
+            {'expected_result': 'non-resonant', 'actual_result': 'non-resonant'},  # Correct
+            {'expected_result': 'non-resonant', 'actual_result': 'controversial'},  # Acceptable
+            {'expected_result': 'non-resonant', 'actual_result': 'transient'},  # Acceptable
+            # Transient accepts: transient, resonant, controversial
+            {'expected_result': 'transient', 'actual_result': 'transient'},  # Correct
+            {'expected_result': 'transient', 'actual_result': 'resonant'},  # Acceptable
+            {'expected_result': 'transient', 'actual_result': 'controversial'},  # Acceptable
+            # Controversial accepts: any value
+            {'expected_result': 'controversial', 'actual_result': 'controversial'},  # Correct
+            {'expected_result': 'controversial', 'actual_result': 'resonant'},  # Acceptable
+            {'expected_result': 'controversial', 'actual_result': 'non-resonant'},  # Acceptable
+            {'expected_result': 'controversial', 'actual_result': 'transient'},  # Acceptable
+        ]
+
+        metrics = calculate_relaxed_metrics(results)
+
+        assert metrics['total_files'] == 12
+        assert metrics['correct_predictions'] == 12  # All should be acceptable
+        assert metrics['incorrect_predictions'] == 0
+        assert metrics['accuracy'] == 1.0
+
+    def test_calculate_relaxed_metrics_mixed_results(self):
+        """Test relaxed metrics with mix of acceptable and unacceptable predictions."""
+        results = [
+            # Resonant cases
+            {'expected_result': 'resonant', 'actual_result': 'resonant'},  # Acceptable
+            {'expected_result': 'resonant', 'actual_result': 'controversial'},  # Acceptable
+            {'expected_result': 'resonant', 'actual_result': 'non-resonant'},  # NOT acceptable
+            {'expected_result': 'resonant', 'actual_result': 'transient'},  # NOT acceptable
+            # Non-resonant cases
+            {'expected_result': 'non-resonant', 'actual_result': 'non-resonant'},  # Acceptable
+            {'expected_result': 'non-resonant', 'actual_result': 'controversial'},  # Acceptable
+            {'expected_result': 'non-resonant', 'actual_result': 'transient'},  # Acceptable
+            {'expected_result': 'non-resonant', 'actual_result': 'resonant'},  # NOT acceptable
+            # Transient cases
+            {'expected_result': 'transient', 'actual_result': 'transient'},  # Acceptable
+            {'expected_result': 'transient', 'actual_result': 'resonant'},  # Acceptable
+            {'expected_result': 'transient', 'actual_result': 'controversial'},  # Acceptable
+            {'expected_result': 'transient', 'actual_result': 'non-resonant'},  # NOT acceptable
+            # Controversial cases (all should be acceptable)
+            {'expected_result': 'controversial', 'actual_result': 'controversial'},  # Acceptable
+            {'expected_result': 'controversial', 'actual_result': 'resonant'},  # Acceptable
+        ]
+
+        metrics = calculate_relaxed_metrics(results)
+
+        assert metrics['total_files'] == 14
+        # Acceptable: 2 + 3 + 3 + 2 = 10
+        assert metrics['correct_predictions'] == 10
+        # Not acceptable: 2 + 1 + 1 + 0 = 4
+        assert metrics['incorrect_predictions'] == 4
+        assert metrics['accuracy'] == 10 / 14  # ≈ 0.714
+
+    def test_calculate_relaxed_metrics_resonant_only(self):
+        """Test relaxed metrics focusing on resonant expectations."""
+        results = [
+            {'expected_result': 'resonant', 'actual_result': 'resonant'},  # Acceptable
+            {'expected_result': 'resonant', 'actual_result': 'controversial'},  # Acceptable
+            {'expected_result': 'resonant', 'actual_result': 'non-resonant'},  # NOT acceptable
+            {'expected_result': 'resonant', 'actual_result': 'transient'},  # NOT acceptable
+        ]
+
+        metrics = calculate_relaxed_metrics(results)
+
+        assert metrics['total_files'] == 4
+        assert metrics['correct_predictions'] == 2
+        assert metrics['incorrect_predictions'] == 2
+        assert metrics['accuracy'] == 0.5
+
+    def test_calculate_relaxed_metrics_non_resonant_only(self):
+        """Test relaxed metrics focusing on non-resonant expectations."""
+        results = [
+            {'expected_result': 'non-resonant', 'actual_result': 'non-resonant'},  # Acceptable
+            {'expected_result': 'non-resonant', 'actual_result': 'controversial'},  # Acceptable
+            {'expected_result': 'non-resonant', 'actual_result': 'transient'},  # Acceptable
+            {'expected_result': 'non-resonant', 'actual_result': 'resonant'},  # NOT acceptable
+        ]
+
+        metrics = calculate_relaxed_metrics(results)
+
+        assert metrics['total_files'] == 4
+        assert metrics['correct_predictions'] == 3
+        assert metrics['incorrect_predictions'] == 1
+        assert metrics['accuracy'] == 0.75
+
+    def test_calculate_relaxed_metrics_transient_only(self):
+        """Test relaxed metrics focusing on transient expectations."""
+        results = [
+            {'expected_result': 'transient', 'actual_result': 'transient'},  # Acceptable
+            {'expected_result': 'transient', 'actual_result': 'resonant'},  # Acceptable
+            {'expected_result': 'transient', 'actual_result': 'controversial'},  # Acceptable
+            {'expected_result': 'transient', 'actual_result': 'non-resonant'},  # NOT acceptable
+        ]
+
+        metrics = calculate_relaxed_metrics(results)
+
+        assert metrics['total_files'] == 4
+        assert metrics['correct_predictions'] == 3
+        assert metrics['incorrect_predictions'] == 1
+        assert metrics['accuracy'] == 0.75
+
+    def test_calculate_relaxed_metrics_controversial_only(self):
+        """Test relaxed metrics focusing on controversial expectations (should accept all)."""
+        results = [
+            {'expected_result': 'controversial', 'actual_result': 'controversial'},  # Acceptable
+            {'expected_result': 'controversial', 'actual_result': 'resonant'},  # Acceptable
+            {'expected_result': 'controversial', 'actual_result': 'non-resonant'},  # Acceptable
+            {'expected_result': 'controversial', 'actual_result': 'transient'},  # Acceptable
+        ]
+
+        metrics = calculate_relaxed_metrics(results)
+
+        assert metrics['total_files'] == 4
+        assert metrics['correct_predictions'] == 4  # All should be acceptable
+        assert metrics['incorrect_predictions'] == 0
+        assert metrics['accuracy'] == 1.0
+
+    def test_calculate_relaxed_metrics_empty_results(self):
+        """Test relaxed metrics calculation with empty results."""
+        results = []
+
+        metrics = calculate_relaxed_metrics(results)
+
+        assert metrics['total_files'] == 0
+        assert metrics['correct_predictions'] == 0
+        assert metrics['incorrect_predictions'] == 0
+        assert metrics['accuracy'] == 0.0
+
+    def test_calculate_relaxed_metrics_vs_strict_comparison(self):
+        """Test that relaxed metrics are more forgiving than strict metrics."""
+        # Results where relaxed should perform better than strict
+        results = [
+            {'expected_result': 'resonant', 'actual_result': 'controversial'},  # Strict: wrong, Relaxed: acceptable
+            {'expected_result': 'non-resonant', 'actual_result': 'transient'},  # Strict: wrong, Relaxed: acceptable
+            {'expected_result': 'transient', 'actual_result': 'resonant'},  # Strict: wrong, Relaxed: acceptable
+            {'expected_result': 'controversial', 'actual_result': 'non-resonant'},  # Both should accept this
+        ]
+
+        strict_metrics = calculate_metrics(results)
+        relaxed_metrics = calculate_relaxed_metrics(results)
+
+        # Relaxed should have higher accuracy than strict
+        assert relaxed_metrics['accuracy'] > strict_metrics['accuracy']
+        assert relaxed_metrics['accuracy'] == 1.0  # All should be acceptable in relaxed
+        assert strict_metrics['accuracy'] < 1.0  # Some should be wrong in strict
 
     def test_save_benchmark_results(self, benchmark_directory):
         """Test saving benchmark results to files."""
