@@ -65,7 +65,7 @@ def create_plot(
         raise ValueError(f"Column '{y_column}' not found in CSV. Available columns: {list(data.columns)}")
 
     # Create the plot
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(10, 3))
     plt.plot(data[x_column], data[y_column], linestyle='', marker='.', color='black', markersize=1)
 
     # Set axis limits
