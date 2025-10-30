@@ -84,7 +84,6 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
         try:
             full_result = analyzer.analyze_image(png_file)
             actual_type = full_result.status
-            subtype = full_result.subtype
             success_count += 1
 
             result = {
@@ -92,12 +91,11 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
                 'full_path': str(relative_path),
                 'expected_result': expected_type.value,
                 'actual_result': actual_type.value,
-                'subtype': str(subtype),
             }
             results.append(result)
 
             match_emoji = "✅" if expected_type == actual_type else "❌"
-            click.echo(f"    {match_emoji} Expected: {expected_type.value}, Got: {actual_type.value} ({subtype})")
+            click.echo(f"    {match_emoji} Expected: {expected_type.value}, Got: {actual_type.value}")
 
         except Exception as exc:
             click.echo(f"    ❌ Error: {exc}")
@@ -107,7 +105,6 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str]):
                 'full_path': str(relative_path),
                 'expected_result': expected_type.value,
                 'actual_result': 'error',
-                'subtype': 'error',
             }
             results.append(result)
 

@@ -56,7 +56,7 @@ def analyze_multiple_images(image_paths: List[Path], provider: str, model_name: 
                 continue
             try:
                 result = analyzer.analyze_image(image_path)
-                click.echo(f"{prov.upper()}: {result.status} ({result.subtype})")
+                click.echo(f"{prov.upper()}: {result.status.value}")
             except Exception as exc:
                 click.echo(f"{prov.upper()}: Error - {exc}")
 
@@ -75,8 +75,8 @@ def run(image_files: tuple, provider: str, model_name: Optional[str]):
 
     IMAGE_FILES: One or more paths to image files to analyze.
 
-    Output format: PROVIDER: status (subtype)
-    Example: OPENAI: resonant (apocentric libration)
+    Output format: PROVIDER: status
+    Example: OPENAI: resonant
     """
     image_paths = [Path(f) for f in image_files]
 
