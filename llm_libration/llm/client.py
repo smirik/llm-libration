@@ -43,21 +43,18 @@ class LLMClient:
         if self.provider == "openai":
             self.llm = ChatOpenAI(
                 model=model_name,
-                temperature=0.0,
                 max_tokens=max_tokens,
                 api_key=api_key,
             )
         elif self.provider == "anthropic":
             self.llm = ChatAnthropic(
                 model=model_name,
-                temperature=0.0,
                 max_tokens=max_tokens,
                 api_key=api_key,
             )
         elif self.provider == "openrouter":
             self.llm = ChatOpenAI(
                 model=model_name,
-                temperature=0.0,
                 max_tokens=max_tokens,
                 api_key=api_key,
                 base_url=base_url,

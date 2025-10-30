@@ -2,7 +2,8 @@
 
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
+
 import click
 
 from llm_libration import LibrationAnalyzer
@@ -22,6 +23,25 @@ def analyze_multiple_images(image_paths: List[Path], provider: str, model_name: 
     else:
         providers = [provider]
 
+    analyzers: Dict[str, LibrationAnalyzer] = {}
+
+    for prov in providers:
+        try:
+            init_kwargs = {'provider': prov}
+            if model_name:
+                init_kwargs['model_name'] = model_name
+            analyzers[prov] = LibrationAnalyzer(**init_kwargs)
+        except Exception as exc:
+            click.echo(f"{prov.upper()}: Initialization error - {exc}", err=True)
+
+    if not analyzers:
+        click.echo("No providers available for analysis.", err=True)
+        return
+
+    click.echo("Selected LLM models for this run:")
+    for prov, analyzer in analyzers.items():
+        click.echo(f"  - {prov.upper()}: {analyzer.llm_client.model_name}")
+
     for image_path in image_paths:
         if not image_path.exists():
             click.echo(f"Error: Image file {image_path} not found", err=True)
@@ -31,15 +51,14 @@ def analyze_multiple_images(image_paths: List[Path], provider: str, model_name: 
         click.echo("-" * 40)
 
         for prov in providers:
+            analyzer = analyzers.get(prov)
+            if analyzer is None:
+                continue
             try:
-                if model_name:
-                    analyzer = LibrationAnalyzer(provider=prov, model_name=model_name)
-                else:
-                    analyzer = LibrationAnalyzer(provider=prov)
                 result = analyzer.analyze_image(image_path)
                 click.echo(f"{prov.upper()}: {result.status} ({result.subtype})")
-            except Exception as e:
-                click.echo(f"{prov.upper()}: Error - {e}")
+            except Exception as exc:
+                click.echo(f"{prov.upper()}: Error - {exc}")
 
 
 @click.command()
@@ -63,6 +82,6 @@ def run(image_files: tuple, provider: str, model_name: Optional[str]):
 
     try:
         analyze_multiple_images(image_paths, provider.lower(), model_name)
-    except Exception as e:
-        click.echo(f"Analysis failed: {e}", err=True)
+    except Exception as exc:
+        click.echo(f"Analysis failed: {exc}", err=True)
         sys.exit(1)
