@@ -158,58 +158,11 @@ Respond with JSON format:
 
     @property
     def prompt_template(self) -> str:
-        """Get the prompt template from environment variables or use default."""
-        default_prompt = (
-            """I want you to act as a scientist–astronomer. You will receive an image uploaded. """
-            """The image contains the plot of the resonant angle of an asteroid vs time (from 0 to 100000 years). """
-            """The limits of OY axis are -pi and pi. The resonant angle cannot exceed these limits.
-
-It is known that if the resonant angle librates, then the asteroid is trapped in the resonance. """
-            """Librations mean oscillations, like sine. It means that the curve is within some limits (i.e., +2, or +1) """
-            """and does not come close to the borders (-pi and pi).
-
-The opposite situation is when the resonant angle circulates. """
-            """It means that the curve is not limited and can reach the borders of the plot. """
-            """In our case, if the resonant angle is greater than pi or less than -pi, then we add or substract 2pi to the """
-            """resonant angle to make it within the limits. Therefore, in the case of circulation, the pattern will be """
-            """like linear curves parallel each other.
-
-I want you to assess visually whether the resonant angle librates if you were a human looking at this image.
-
-There are several possible cases:
-
-1. The resonant angle librates all the time (from 0 to 100000). Then the status should be 'resonant'.
-2. The resonant angle could librate some significant time, but in other time it circulates. """
-            """Let's assume that by significant I mean 20000 years. In this case, the status should be 'transient'.
-3. Otherwise, when the resonant angle circulates most of the time, the status should be 'non-resonant'.
-4. If you are not sure or the pattern is unclear, the status should be 'controversial'.
-
-For the subtype, please classify the specific type of behavior you observe:
-
-RESONANT subtypes (use when status is 'resonant'):
-- 'clear libration': Clean, simple libration pattern
-- 'apocentric libration': Libration around the borders 0 and 2*pi (visible breaks but still resonant)
-- 'high amplitude libration': Large oscillations within bounds
-- 'long period libration': Slow, long-term oscillations
-- 'noisy libration': Libration with noise or irregularities
-- 'double libration': Complex libration patterns with primary and secondary periods
-
-NON-RESONANT subtypes (use when status is 'non-resonant'):
-- 'circulation': Simple circulation (parallel lines)
-- 'sparse circulation': Circulation with scattered data points
-- 'chaotic circulation': Irregular circulation patterns
-- 'mixed circulation': Circulation with some structured patterns
-
-TRANSIENT subtypes (use when status is 'transient'):
-- 'noisy libration to circulation': Transition from noisy libration to circulation
-- 'apocentric libration with circulation phases': Apocentric libration interrupted by circulation
-- 'alternating libration and circulation': Regular alternation between behaviors
-
-For controversial cases, use descriptive text that best explains the uncertain pattern.
-
-Please provide a brief explanation of your visual assessment and reasoning."""
-        )
-        return os.getenv("PROMPT_TEMPLATE", default_prompt)
+        """Get the prompt template from environment variables."""
+        prompt = os.getenv("PROMPT_TEMPLATE")
+        if not prompt:
+            raise ConfigurationError("PROMPT_TEMPLATE is not set. Copy .env.dist to .env and configure PROMPT_TEMPLATE.")
+        return prompt
 
 
 # Global configuration instance
