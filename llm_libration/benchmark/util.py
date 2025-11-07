@@ -220,8 +220,11 @@ def save_benchmark_results(
     date_time = start_time.strftime("%Y-%m-%d_%H-%M-%S")
     model_name = model or "default"
 
+    # Sanitize model name for use in filenames (replace "/" with "_")
+    sanitized_model_name = model_name.replace("/", "_")
+
     # Save CSV results
-    csv_filename = f"benchmark_results_{provider}_{model_name}_{date_time}.csv"
+    csv_filename = f"benchmark_results_{provider}_{sanitized_model_name}_{date_time}.csv"
     csv_path = benchmark_dir / csv_filename
 
     with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
@@ -232,7 +235,7 @@ def save_benchmark_results(
             writer.writerow(result)
 
     # Save detailed JSON results
-    json_filename = f"benchmark_details_{provider}_{model_name}_{date_time}.json"
+    json_filename = f"benchmark_details_{provider}_{sanitized_model_name}_{date_time}.json"
     json_path = benchmark_dir / json_filename
 
     detailed_results = {

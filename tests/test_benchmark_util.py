@@ -500,3 +500,47 @@ class TestBenchmarkUtilities:
         with open(json_path, 'r') as f:
             json_data = json.load(f)
             assert json_data['benchmark_info']['model'] == 'default'
+
+    def test_save_benchmark_results_model_with_slash(self, benchmark_directory):
+        """Test saving benchmark results with model name containing slash."""
+        results = [
+            {
+                'filename': 'test.png',
+                'full_path': 'test/test.png',
+                'expected_result': 'resonant',
+                'actual_result': 'resonant',
+                'subtype': 'clear libration',
+            },
+        ]
+
+        metrics = {
+            'total_files': 1,
+            'true_positives': 1,
+            'true_negatives': 0,
+            'false_positives': 0,
+            'false_negatives': 0,
+            'accuracy': 1.0,
+            'precision': 1.0,
+            'recall': 1.0,
+            'f1_score': 1.0,
+        }
+
+        start_time = datetime(2025, 10, 30, 14, 26, 56)
+
+        # Test with a model name containing "/"
+        csv_path, json_path = save_benchmark_results(
+            benchmark_directory, results, metrics, 'openrouter', 'google/gemini-2.5-pro', start_time
+        )
+
+        # Check that files were created with sanitized model name (slash replaced with underscore)
+        assert csv_path.exists()
+        assert json_path.exists()
+        assert "google_gemini-2.5-pro" in csv_path.name
+        assert "google_gemini-2.5-pro" in json_path.name
+        assert csv_path.name == "benchmark_results_openrouter_google_gemini-2.5-pro_2025-10-30_14-26-56.csv"
+        assert json_path.name == "benchmark_details_openrouter_google_gemini-2.5-pro_2025-10-30_14-26-56.json"
+
+        # Check JSON content preserves original model name
+        with open(json_path, 'r') as f:
+            json_data = json.load(f)
+            assert json_data['benchmark_info']['model'] == 'google/gemini-2.5-pro'  # Original name preserved in JSON
