@@ -1,0 +1,44 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# LLM-Libration Project Knowledge Base
+
+LLM-Libration is a Python package for analyzing resonant angle plots in astronomical data using Large Language Models (LLMs). It identifies libration patterns (resonant, non-resonant, or controversial/transient behavior) in asteroid orbital dynamics.
+
+## Core Architecture
+
+### Main Classes
+- **`LibrationAnalyzer`**: Primary analysis class
+- **`LLMClient`**: Handles all LLM provider interactions and image processing
+- **`Config`**: Centralized configuration management with environment variable loading
+- **`ResonanceType`**: Enum with values `RESONANT`, `NON_RESONANT`, `CONTROVERSIAL`
+
+### Project Structure
+```
+llm_libration/ - code
+tests/ - tests
+.env.dist                  # Default environment template
+pyproject.toml            # Package configuration
+Makefile # common commands
+```
+
+## Key Implementation Details
+
+- **Two-stage loading**: `.env.dist` (defaults) → `.env` (overrides)
+- **Global config instance**: `from llm_libration.config import config`
+- **Provider-agnostic interface**: Same API for all providers
+- **Direct Ollama integration**: Uses `ollama` package for optimal vision support
+- Black formatter + flake8
+- **Docstrings**: Google style for all public methods
+- **Error handling**: Custom exceptions with descriptive messages
+
+## Important rules:
+
+- Keep code clean and minimal (KISS)
+- Avoid unnecessary complications and multiple files creation
+- Do not care about backward compatibility unless it is specified explicitly
+- Update this rule file whenever making significant changes
+- Check tests when you implement anything significant
+- Use always python venv (in .venv)
