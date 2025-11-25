@@ -163,6 +163,42 @@ class TestLibrationAnalyzer:
         assert result.subtype == "mixed behavior"
         openai_analyzer.llm_client.analyze_image_with_prompt.assert_called_once()
 
+    def test_analyze_image_retries_on_length_limit(self, openai_analyzer, sample_image):
+        """Analyzer retries when OpenAI hits length limits."""
+        from llm_libration.llm.schema import LibrationAnalysisResult
+
+        mock_result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype="test subtype")
+        openai_analyzer.llm_client.analyze_image_with_prompt = Mock(
+            side_effect=[LLMResponseError("length limit was reached"), mock_result]
+        )
+
+        result = openai_analyzer.analyze_image(sample_image)
+        assert result.status == ResonanceType.RESONANT
+        assert openai_analyzer.llm_client.analyze_image_with_prompt.call_count == 2
+
+    def test_analyze_image_retry_exhaustion(self, openai_analyzer, sample_image):
+        """Analyzer raises after max retries."""
+        openai_analyzer.llm_client.analyze_image_with_prompt = Mock(
+            side_effect=LLMResponseError("length limit was reached every time")
+        )
+
+        with pytest.raises(LLMResponseError):
+            openai_analyzer.analyze_image(sample_image)
+        assert openai_analyzer.llm_client.analyze_image_with_prompt.call_count == openai_analyzer.MAX_RETRIES
+
+    def test_analyze_image_retries_connection_error(self, openai_analyzer, sample_image):
+        """Connection errors trigger retries."""
+        from llm_libration.llm.schema import LibrationAnalysisResult
+
+        mock_result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype="test subtype")
+        openai_analyzer.llm_client.analyze_image_with_prompt = Mock(
+            side_effect=[LLMResponseError("Connection error."), mock_result]
+        )
+
+        result = openai_analyzer.analyze_image(sample_image)
+        assert result.status == ResonanceType.RESONANT
+        assert openai_analyzer.llm_client.analyze_image_with_prompt.call_count == 2
+
     def test_get_resonance_type_error(self, openai_analyzer, sample_image):
         """Test get_resonance_type method with LLM error."""
         openai_analyzer.llm_client.analyze_image_with_prompt = Mock(side_effect=LLMResponseError("API error"))

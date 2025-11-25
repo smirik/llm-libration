@@ -115,6 +115,21 @@ class TestConfig:
             config = Config(load_env=False)
             assert config.prompt_template == custom_prompt
 
+    def test_get_prompt_template_custom_variable(self):
+        """Prompt templates can be sourced from arbitrary environment variables."""
+        with patch.dict(
+            os.environ, {"PROMPT_TEMPLATE": "default prompt", "PROMPT_TEMPLATE_SIMPLIFIED": "binary prompt"}, clear=True
+        ):
+            config = Config(load_env=False)
+            assert config.get_prompt_template("PROMPT_TEMPLATE_SIMPLIFIED") == "binary prompt"
+
+    def test_get_prompt_template_missing_variable(self):
+        """Missing prompt variables raise a configuration error."""
+        with patch.dict(os.environ, {}, clear=True):
+            config = Config(load_env=False)
+            with pytest.raises(ConfigurationError, match="CUSTOM_PROMPT"):
+                config.get_prompt_template("CUSTOM_PROMPT")
+
     def test_config_anthropic_properties(self):
         """Test Anthropic-specific configuration properties."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-anthropic-key", "ANTHROPIC_MODEL_NAME": "claude-sonnet-4"}):

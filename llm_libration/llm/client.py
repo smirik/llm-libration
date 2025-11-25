@@ -3,13 +3,29 @@
 import base64
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Union
 
-import ollama
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain.schema import HumanMessage
+try:
+    import ollama  # type: ignore
+except ImportError:  # pragma: no cover - fallback when ollama package is absent
+    ollama = None
+
+try:
+    from langchain_openai import ChatOpenAI  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    ChatOpenAI = None
+
+try:
+    from langchain_anthropic import ChatAnthropic  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    ChatAnthropic = None
+
+try:
+    from langchain.schema import HumanMessage
+except ImportError:  # pragma: no cover - optional dependency
+    HumanMessage = None
 from PIL import Image
 
 from .schema import LibrationAnalysisResult
@@ -37,29 +53,53 @@ class LLMClient:
         self.base_url = base_url
         self.api_key = api_key
 
-        # Increase max_tokens for structured outputs
-        max_tokens = 2000
+        # Increase max_tokens for structured outputs while keeping headroom for reasoning
+        # Set to 2000 to avoid truncation errors with reasoning models
+        max_tokens = 4000
+        temperature = 1.0  # gpt-5-mini and similar structured APIs only support the default temperature
 
         if self.provider == "openai":
+            if ChatOpenAI is None:
+                raise ConfigurationError(
+                    "OpenAI provider requested but 'langchain-openai' is not installed. " "Install it with `pip install langchain-openai`."
+                )
             self.llm = ChatOpenAI(
                 model=model_name,
+                temperature=temperature,
                 max_tokens=max_tokens,
                 api_key=api_key,
             )
         elif self.provider == "anthropic":
+            if ChatAnthropic is None:
+                raise ConfigurationError(
+                    "Anthropic provider requested but 'langchain-anthropic' is not installed. "
+                    "Install it with `pip install langchain-anthropic`."
+                )
             self.llm = ChatAnthropic(
                 model=model_name,
+                temperature=temperature,
                 max_tokens=max_tokens,
                 api_key=api_key,
             )
         elif self.provider == "openrouter":
+            if ChatOpenAI is None:
+                raise ConfigurationError(
+                    "OpenRouter provider requested but 'langchain-openai' is not installed. "
+                    "Install it with `pip install langchain-openai`."
+                )
             self.llm = ChatOpenAI(
                 model=model_name,
+                temperature=temperature,
                 max_tokens=max_tokens,
                 api_key=api_key,
                 base_url=base_url,
             )
         elif self.provider == "ollama":
+            if ollama is None:
+                raise ConfigurationError(
+                    "Ollama provider requested but the 'ollama' Python package is not installed. "
+                    "Install it with `pip install ollama` to enable local vision models."
+                )
             self.ollama_client = ollama.Client(host=base_url)
         else:
             raise ConfigurationError(f"Unsupported provider: {provider}")
@@ -108,6 +148,8 @@ class LLMClient:
             Structured libration analysis result
         """
         try:
+            if HumanMessage is None:
+                raise ConfigurationError("LangChain core is not installed. Install `langchain` to enable structured outputs.")
             base64_image, mime_type = self.encode_image(image_path)
 
             # Create structured LLM
@@ -128,6 +170,54 @@ class LLMClient:
             raise
         except Exception as e:
             raise LLMResponseError(f"{self.provider.title()} structured analysis failed: {str(e)}")
+
+    def _analyze_with_openrouter_structured(self, image_path: Union[str, Path], prompt: str) -> LibrationAnalysisResult:
+        """
+        Analyze image using OpenRouter, falling back to manual JSON parsing when needed.
+        """
+        try:
+            return self._analyze_with_langchain_structured(image_path, prompt)
+        except ImageAnalysisError:
+            raise
+        except LLMResponseError as structured_error:
+            logger.debug("OpenRouter structured output failed, attempting JSON fallback: %s", structured_error)
+            return self._analyze_with_openrouter_json(image_path, prompt, structured_error)
+
+    def _analyze_with_openrouter_json(
+        self,
+        image_path: Union[str, Path],
+        prompt: str,
+        structured_error: LLMResponseError | None = None,
+    ) -> LibrationAnalysisResult:
+        """
+        Fallback path for OpenRouter models that ignore LangChain structured outputs.
+        """
+        try:
+            if HumanMessage is None:
+                raise ConfigurationError("LangChain core is not installed. Install `langchain` to enable structured outputs.")
+
+            formatted_prompt = self._format_prompt_for_json(prompt)
+            base64_image, mime_type = self.encode_image(image_path)
+
+            message = HumanMessage(
+                content=[
+                    {"type": "text", "text": formatted_prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}", "detail": "high"}},
+                ]
+            )
+
+            response = self.llm.invoke([message])
+            content = self._extract_text_content(response)
+            cleaned_content = self._clean_json_response(content)
+            parsed_data = json.loads(cleaned_content)
+
+            if 'status' not in parsed_data or 'subtype' not in parsed_data:
+                raise ValueError(f"Missing required fields in response: {parsed_data}")
+
+            return LibrationAnalysisResult(**parsed_data)
+        except Exception as exc:
+            context = f"; structured attempt error: {structured_error}" if structured_error else ""
+            raise LLMResponseError(f"OpenRouter JSON fallback failed to parse response: {exc}{context}")
 
     def _analyze_with_ollama_structured(self, image_path: Union[str, Path], prompt: str) -> LibrationAnalysisResult:
         """
@@ -230,7 +320,7 @@ class LLMClient:
 
     def _clean_json_response(self, content: str) -> str:
         """
-        Clean up JSON response from LLM by removing markdown formatting.
+        Extract and sanitize JSON content from an LLM response.
 
         Args:
             content: Raw response content from LLM
@@ -244,23 +334,68 @@ class LLMClient:
         content = content.strip()
         logger.debug(f"Original content: {repr(content)}")
 
-        # Remove markdown code blocks
-        if content.startswith('```json'):
-            content = content[7:]
-        elif content.startswith('```'):
-            content = content[3:]
+        # Prefer fenced code blocks if available
+        code_blocks = re.findall(r"```(?:json)?\s*([\s\S]*?)```", content, flags=re.IGNORECASE)
+        if code_blocks:
+            content = code_blocks[0].strip()
+            logger.debug(f"Using fenced code block: {repr(content)}")
+        else:
+            # Remove stray fence markers
+            content = content.replace("```json", "").replace("```", "").strip()
 
-        if content.endswith('```'):
-            content = content[:-3]
+        # Simple case: already clean JSON object/array
+        if (content.startswith('{') and content.endswith('}')) or (content.startswith('[') and content.endswith(']')):
+            return content
 
-        content = content.strip()
-        logger.debug(f"After markdown cleanup: {repr(content)}")
+        # Attempt to locate JSON substring by decoding at every brace
+        decoder = json.JSONDecoder()
+        for idx, char in enumerate(content):
+            if char not in '{[':
+                continue
+            try:
+                obj, _ = decoder.raw_decode(content[idx:])
+                serialized = json.dumps(obj)
+                logger.debug(f"Extracted JSON substring: {serialized}")
+                return serialized
+            except json.JSONDecodeError:
+                continue
 
-        # Validate that we have something that looks like JSON
-        if not (content.startswith('{') and content.endswith('}')):
-            raise ValueError(f"Content doesn't look like JSON: {repr(content)}")
+        raise ValueError(f"Content doesn't contain valid JSON: {repr(content)}")
 
-        return content
+    @staticmethod
+    def _format_prompt_for_json(prompt: str) -> str:
+        """Append explicit JSON-only instructions to the prompt."""
+        prompt = prompt.rstrip()
+        instructions = (
+            "Respond ONLY with a single JSON object using double quotes and lowercase keys exactly as shown:\n"
+            '{ "status": "<resonant|non-resonant|transient|controversial>", "subtype": "<short description>" }\n'
+            "Do not include markdown fences or explanations."
+        )
+        return f"{prompt}\n\n{instructions}"
+
+    @staticmethod
+    def _extract_text_content(response) -> str:
+        """
+        Convert LangChain AIMessage content into plain text.
+        """
+        content = getattr(response, "content", response)
+
+        if isinstance(content, str):
+            return content
+
+        if isinstance(content, list):
+            parts: list[str] = []
+            for chunk in content:
+                if isinstance(chunk, str):
+                    parts.append(chunk)
+                elif isinstance(chunk, dict):
+                    text_value = chunk.get("text") or chunk.get("content")
+                    if text_value:
+                        parts.append(text_value)
+            if parts:
+                return "\n".join(parts)
+
+        return str(content)
 
     def analyze_image_with_prompt(self, image_path: Union[str, Path], prompt: str) -> LibrationAnalysisResult:
         """
@@ -278,8 +413,10 @@ class LLMClient:
             LLMResponseError: If LLM interaction fails
         """
         try:
-            if self.provider in ["openai", "anthropic", "openrouter"]:
+            if self.provider in ["openai", "anthropic"]:
                 return self._analyze_with_langchain_structured(image_path, prompt)
+            elif self.provider == "openrouter":
+                return self._analyze_with_openrouter_structured(image_path, prompt)
             elif self.provider == "ollama":
                 return self._analyze_with_ollama_structured(image_path, prompt)
             else:

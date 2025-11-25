@@ -26,16 +26,23 @@ def find_png_files(directory: Path) -> List[Path]:
     return sorted(png_files)
 
 
-def map_folder_to_expected_result(folder_name: str) -> ResonanceType:
+def map_folder_to_expected_result(folder_name: str, simplified: bool = False) -> ResonanceType:
     """
     Map folder names to expected resonance types.
 
     Args:
         folder_name: Name of the folder
+        simplified: If True, collapse categories into resonant vs non-resonant
 
     Returns:
         Expected ResonanceType
     """
+    if simplified:
+        folder_lower = folder_name.lower()
+        if any(keyword in folder_lower for keyword in ['libration', 'transient']):
+            return ResonanceType.RESONANT
+        return ResonanceType.NON_RESONANT
+
     folder_mapping = {
         'libration': ResonanceType.RESONANT,
         'circulation': ResonanceType.NON_RESONANT,

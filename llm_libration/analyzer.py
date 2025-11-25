@@ -1,13 +1,16 @@
 """Main analyzer module for resonant angle libration detection."""
 
+import logging
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 from .types import ResonanceType
 from .exceptions import ImageAnalysisError, LLMResponseError, ConfigurationError
 from .config import config
 from .llm import LLMClient
 from .llm.schema import LibrationAnalysisResult
+
+logger = logging.getLogger(__name__)
 
 
 class LibrationAnalyzer:
@@ -50,7 +53,9 @@ class LibrationAnalyzer:
             base_url=base_url,
         )
 
-    def analyze_image(self, image_path: Union[str, Path]) -> LibrationAnalysisResult:
+    MAX_RETRIES = 3
+
+    def analyze_image(self, image_path: Union[str, Path], prompt: Optional[str] = None) -> LibrationAnalysisResult:
         """
         Analyze a resonant angle plot image and return detailed structured result.
 
@@ -65,15 +70,31 @@ class LibrationAnalyzer:
             LLMResponseError: If LLM response is invalid
             ConfigurationError: If configuration is missing
         """
-        try:
-            result = self.llm_client.analyze_image_with_prompt(image_path, config.prompt_template)
-            return result
-        except (ImageAnalysisError, LLMResponseError, ConfigurationError):
-            raise
-        except Exception as e:
-            raise ImageAnalysisError(f"Unexpected error during image analysis: {str(e)}")
+        prompt_template = prompt or config.prompt_template
+        last_error: Exception | None = None
 
-    def get_resonance_type(self, image_path: Union[str, Path]) -> ResonanceType:
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            try:
+                return self.llm_client.analyze_image_with_prompt(image_path, prompt_template)
+            except LLMResponseError as exc:
+                last_error = exc
+                if attempt < self.MAX_RETRIES and self._is_retryable_error(exc):
+                    logger.warning(
+                        f"Retryable error on attempt {attempt}/{self.MAX_RETRIES}: {exc}. Retrying..."
+                    )
+                    continue
+                raise
+            except (ImageAnalysisError, ConfigurationError):
+                raise
+            except Exception as exc:  # pragma: no cover - unexpected edge cases
+                raise ImageAnalysisError(f"Unexpected error during image analysis: {str(exc)}")
+
+        # Should not reach here, but safety
+        if last_error:
+            raise last_error
+        raise ImageAnalysisError("Unable to analyze image due to unknown error.")
+
+    def get_resonance_type(self, image_path: Union[str, Path], prompt: Optional[str] = None) -> ResonanceType:
         """
         Analyze a resonant angle plot image and return the ResonanceType enum.
 
@@ -91,9 +112,23 @@ class LibrationAnalyzer:
             ConfigurationError: If configuration is missing
         """
         try:
-            result = self.analyze_image(image_path)
+            result = self.analyze_image(image_path, prompt=prompt)
             return result.status
         except (ImageAnalysisError, LLMResponseError, ConfigurationError):
             raise
         except Exception as e:
             raise ImageAnalysisError(f"Unexpected error during image analysis: {str(e)}")
+
+    @staticmethod
+    def _is_retryable_error(exc: Exception) -> bool:
+        """Detect transient LLM failures that are worth retrying."""
+        message = str(exc).lower()
+        transient_keywords = [
+            "length limit was reached",
+            "completionusage",
+            "connection error",
+            "timed out",
+            "temporarily unavailable",
+            "rate limit",
+        ]
+        return any(keyword in message for keyword in transient_keywords)

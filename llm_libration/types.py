@@ -13,3 +13,10 @@ class ResonanceType(Enum):
 
     def __str__(self) -> str:
         return self.value
+
+
+def simplify_resonance_type(value: ResonanceType) -> ResonanceType:
+    """Collapse detailed resonance states into binary resonant/non-resonant classes."""
+    if value in (ResonanceType.RESONANT, ResonanceType.TRANSIENT):
+        return ResonanceType.RESONANT
+    return ResonanceType.NON_RESONANT

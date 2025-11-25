@@ -156,13 +156,22 @@ Respond with JSON format:
         else:
             raise ConfigurationError(f"Unknown provider: {provider}")
 
+    def get_prompt_template(self, env_var_name: str = "PROMPT_TEMPLATE") -> str:
+        """Get a prompt template from the specified environment variable."""
+        if not env_var_name or not env_var_name.strip():
+            raise ConfigurationError("Prompt environment variable name cannot be empty.")
+
+        value = os.getenv(env_var_name.strip())
+        if not value:
+            raise ConfigurationError(
+                f"{env_var_name.strip()} is not set. Copy .env.dist to .env and configure the prompt template."
+            )
+        return value
+
     @property
     def prompt_template(self) -> str:
-        """Get the prompt template from environment variables."""
-        prompt = os.getenv("PROMPT_TEMPLATE")
-        if not prompt:
-            raise ConfigurationError("PROMPT_TEMPLATE is not set. Copy .env.dist to .env and configure PROMPT_TEMPLATE.")
-        return prompt
+        """Get the default prompt template from environment variables."""
+        return self.get_prompt_template("PROMPT_TEMPLATE")
 
 
 # Global configuration instance

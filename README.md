@@ -2,6 +2,8 @@
 
 A Python package for analyzing resonant angle libration patterns in astronomical data using Large Language Models (LLMs). The package supports multiple LLM providers including OpenAI, Anthropic, OpenRouter, and local models via Ollama.
 
+Note that the author has actively used Claude Code and OpenAI Codex to build this tool.
+
 ## Features
 
 - 🔍 **Automated Analysis**: AI-powered detection of libration patterns in resonant angle plots
@@ -130,7 +132,12 @@ OLLAMA_MODEL_NAME=qwen2.5vl:7b  # Optional, this is the default
 ```bash
 # Custom prompt template (optional)
 PROMPT_TEMPLATE="Your custom analysis prompt here..."
+
+# Binary-only template used by --simplified benchmarks
+PROMPT_TEMPLATE_SIMPLIFIED="Treat any bounded oscillation (even transient segments) as resonant; only pure diagonal/chaotic plots are non-resonant. Return exactly {\"status\": \"resonant\"} or {\"status\": \"non-resonant\"} on one line."
 ```
+
+`PROMPT_TEMPLATE_SIMPLIFIED` ships with a default binary classifier prompt in `.env.dist` and is automatically selected when you pass `--simplified` to the benchmark command unless you override `--prompt-env-var`.
 
 ## Environment Setup
 
@@ -204,6 +211,9 @@ llm-libration run input/demo.png --provider all
 
 # Use custom model
 llm-libration run input/demo.png --provider anthropic --model claude-sonnet-4
+
+# Use an alternate prompt template
+llm-libration run input/demo.png --prompt-env-var PROMPT_TEMPLATE_SIMPLIFIED
 ```
 
 **Run Command Options:**
@@ -211,6 +221,8 @@ llm-libration run input/demo.png --provider anthropic --model claude-sonnet-4
 - `IMAGE_FILES`: One or more image paths (required)
 - `--provider`: LLM provider (`openai`, `anthropic`, `openrouter`, `ollama`, `all`) (default: `openai`)
 - `--model`: Custom model name (optional)
+- `--prompt-env-var`: Environment variable holding the prompt template (default: `PROMPT_TEMPLATE`)
+- `--simplified`: Force binary resonant/non-resonant classification (defaults prompt to `PROMPT_TEMPLATE_SIMPLIFIED` when not overridden)
 
 ### Benchmark Evaluation
 
@@ -232,6 +244,10 @@ llm-libration benchmark input/benchmark --provider openai --model gpt-4-vision-p
 - `BENCHMARK_DIR`: Path to directory with categorized subdirectories (required)
 - `--provider`: LLM provider (`openai`, `anthropic`, `openrouter`, `ollama`) (default: `openai`)
 - `--model`: Custom model name (optional)
+- `--prompt-env-var`: Environment variable that stores the prompt template (default: `PROMPT_TEMPLATE`)
+- `--simplified`: Collapse transient+libration into a single resonant class (binary resonant vs non-resonant)
+
+The `--simplified` flag is useful for coarse benchmarking where any bounded oscillation (pure or transient) should count as resonant. When it is enabled, libration and transient folders become resonant, everything else becomes non-resonant, and the CLI will automatically use `PROMPT_TEMPLATE_SIMPLIFIED` unless you override `--prompt-env-var`.
 
 **Benchmark Directory Structure:**
 The benchmark directory should contain categorized subdirectories:
@@ -240,6 +256,12 @@ The benchmark directory should contain categorized subdirectories:
 - `circulation/` or `non-resonant/` - Images showing non-resonant (circulation) behavior
 - `transient/` - Images showing transient behavior (mapped to controversial)
 - `controversial/` - Images that are difficult to classify
+
+Example simplified benchmark run:
+
+```bash
+llm-libration benchmark benchmark/test --simplified --prompt-env-var PROMPT_TEMPLATE_SIMPLIFIED
+```
 
 The command will:
 
@@ -264,23 +286,25 @@ class LibrationAnalyzer:
             provider: Override the default provider (openai, anthropic, openrouter, ollama)
         """
 
-    def analyze_image(self, image_path: Union[str, Path]) -> LibrationAnalysisResult:
+    def analyze_image(self, image_path: Union[str, Path], prompt: Optional[str] = None) -> LibrationAnalysisResult:
         """
         Analyze a resonance plot image and return detailed structured result.
 
         Args:
             image_path: Path to the image file
+            prompt: Optional custom prompt template override
 
         Returns:
             LibrationAnalysisResult with status and subtype information
         """
 
-    def get_resonance_type(self, image_path: Union[str, Path]) -> ResonanceType:
+    def get_resonance_type(self, image_path: Union[str, Path], prompt: Optional[str] = None) -> ResonanceType:
         """
         Analyze a resonance plot image and return the ResonanceType enum.
 
         Args:
             image_path: Path to the image file
+            prompt: Optional custom prompt template override
 
         Returns:
             ResonanceType enum (RESONANT, NON_RESONANT, TRANSIENT, or CONTROVERSIAL)

@@ -9,7 +9,7 @@ __version__ = "0.1.0"
 __author__ = "Evgeny Smirnov"
 
 from .analyzer import LibrationAnalyzer
-from .types import ResonanceType
+from .types import ResonanceType, simplify_resonance_type
 from .exceptions import LLMLibrationError, ImageAnalysisError
 from .config import config
 from .llm import LLMClient
@@ -17,6 +17,7 @@ from .llm import LLMClient
 __all__ = [
     "LibrationAnalyzer",
     "ResonanceType",
+    "simplify_resonance_type",
     "LLMLibrationError",
     "ImageAnalysisError",
     "config",

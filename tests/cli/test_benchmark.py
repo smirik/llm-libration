@@ -19,6 +19,12 @@ class TestBenchmarkCLI:
         """Create a Click test runner."""
         return CliRunner()
 
+    @pytest.fixture(autouse=True)
+    def mock_prompt_template(self):
+        """Ensure benchmark CLI always has a prompt template string."""
+        with patch('llm_libration.cli.benchmark.config.get_prompt_template', return_value='dummy prompt') as mock_get:
+            yield mock_get
+
     @pytest.fixture
     def benchmark_directory(self):
         """Create a temporary benchmark directory structure for testing."""
@@ -205,3 +211,31 @@ class TestBenchmarkCLI:
 
                 assert result.exit_code == 0
                 assert 'Found 2 PNG files to analyze' in result.output
+
+    def test_benchmark_prompt_env_option(self, runner, benchmark_directory, mock_prompt_template):
+        """Ensure custom prompt variable name is used."""
+        with patch('llm_libration.cli.benchmark.LibrationAnalyzer') as mock_analyzer_class:
+            mock_analyzer = MagicMock()
+            mock_result = LibrationAnalysisResult(status=ResonanceType.RESONANT, subtype=ResonantSubtype.CLEAR_LIBRATION)
+            mock_analyzer.analyze_image.return_value = mock_result
+            mock_analyzer_class.return_value = mock_analyzer
+
+            result = runner.invoke(
+                main, ['benchmark', str(benchmark_directory), '--prompt-env-var', 'ALT_PROMPT']
+            )
+
+            assert result.exit_code == 0
+            mock_prompt_template.assert_called_with('ALT_PROMPT')
+
+    def test_benchmark_simplified_switches_prompt(self, runner, benchmark_directory, mock_prompt_template):
+        """Simplified mode should default to the simplified prompt variable."""
+        with patch('llm_libration.cli.benchmark.LibrationAnalyzer') as mock_analyzer_class:
+            mock_analyzer = MagicMock()
+            mock_result = LibrationAnalysisResult(status=ResonanceType.TRANSIENT, subtype=ResonantSubtype.CLEAR_LIBRATION)
+            mock_analyzer.analyze_image.return_value = mock_result
+            mock_analyzer_class.return_value = mock_analyzer
+
+            result = runner.invoke(main, ['benchmark', str(benchmark_directory), '--simplified'])
+
+            assert result.exit_code == 0
+            mock_prompt_template.assert_called_with('PROMPT_TEMPLATE_SIMPLIFIED')

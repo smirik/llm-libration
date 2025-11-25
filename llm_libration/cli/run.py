@@ -6,10 +6,18 @@ from typing import Dict, List, Optional
 
 import click
 
-from llm_libration import LibrationAnalyzer
+from llm_libration import LibrationAnalyzer, config
+from llm_libration.exceptions import ConfigurationError
+from llm_libration.types import ResonanceType, simplify_resonance_type
 
 
-def analyze_multiple_images(image_paths: List[Path], provider: str, model_name: Optional[str] = None) -> None:
+def analyze_multiple_images(
+    image_paths: List[Path],
+    provider: str,
+    model_name: Optional[str] = None,
+    prompt_template: Optional[str] = None,
+    simplified: bool = False,
+) -> None:
     """
     Analyze multiple images with specified provider(s).
 
@@ -22,6 +30,8 @@ def analyze_multiple_images(image_paths: List[Path], provider: str, model_name: 
         providers = ["openai", "anthropic", "openrouter", "ollama"]
     else:
         providers = [provider]
+
+    prompt_template = prompt_template or config.prompt_template
 
     analyzers: Dict[str, LibrationAnalyzer] = {}
 
@@ -55,8 +65,11 @@ def analyze_multiple_images(image_paths: List[Path], provider: str, model_name: 
             if analyzer is None:
                 continue
             try:
-                result = analyzer.analyze_image(image_path)
-                click.echo(f"{prov.upper()}: {result.status.value}")
+                result = analyzer.analyze_image(image_path, prompt=prompt_template)
+                status: ResonanceType = result.status
+                if simplified:
+                    status = simplify_resonance_type(status)
+                click.echo(f"{prov.upper()}: {status.value}")
             except Exception as exc:
                 click.echo(f"{prov.upper()}: Error - {exc}")
 
@@ -70,7 +83,18 @@ def analyze_multiple_images(image_paths: List[Path], provider: str, model_name: 
     help='LLM provider to use (default: openai). Use "all" to try all providers.',
 )
 @click.option('--model', 'model_name', help='Model name override (optional)')
-def run(image_files: tuple, provider: str, model_name: Optional[str]):
+@click.option(
+    '--prompt-env-var',
+    default='PROMPT_TEMPLATE',
+    show_default=True,
+    help='Environment variable that contains the prompt template applied to images.',
+)
+@click.option(
+    '--simplified',
+    is_flag=True,
+    help='Binary classification helper: use the simplified prompt by default and map transient to resonant.',
+)
+def run(image_files: tuple, provider: str, model_name: Optional[str], prompt_env_var: str, simplified: bool):
     """Run libration analysis on one or more image files.
 
     IMAGE_FILES: One or more paths to image files to analyze.
@@ -80,8 +104,18 @@ def run(image_files: tuple, provider: str, model_name: Optional[str]):
     """
     image_paths = [Path(f) for f in image_files]
 
+    effective_prompt_var = (prompt_env_var or "PROMPT_TEMPLATE").strip() or "PROMPT_TEMPLATE"
+    if simplified and effective_prompt_var.upper() == "PROMPT_TEMPLATE":
+        effective_prompt_var = "PROMPT_TEMPLATE_SIMPLIFIED"
+
     try:
-        analyze_multiple_images(image_paths, provider.lower(), model_name)
+        prompt_template = config.get_prompt_template(effective_prompt_var)
+    except ConfigurationError as exc:
+        click.echo(f"❌ {exc}", err=True)
+        sys.exit(1)
+
+    try:
+        analyze_multiple_images(image_paths, provider.lower(), model_name, prompt_template, simplified=simplified)
     except Exception as exc:
         click.echo(f"Analysis failed: {exc}", err=True)
         sys.exit(1)

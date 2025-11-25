@@ -33,7 +33,7 @@ class TestLLMClient:
             assert client is not None
             assert client.provider == "openai"
             assert client.model_name == "gpt-4"
-            mock_chat.assert_called_once_with(model="gpt-4", temperature=0.0, max_tokens=2000, api_key="test-key")
+            mock_chat.assert_called_once_with(model="gpt-4", temperature=1.0, max_tokens=4000, api_key="test-key")
 
     def test_llm_client_init_anthropic(self):
         """Test LLMClient initialization with Anthropic provider."""
@@ -42,7 +42,7 @@ class TestLLMClient:
             assert client is not None
             assert client.provider == "anthropic"
             assert client.model_name == "claude-sonnet-4"
-            mock_chat.assert_called_once_with(model="claude-sonnet-4", temperature=0.0, max_tokens=2000, api_key="test-key")
+            mock_chat.assert_called_once_with(model="claude-sonnet-4", temperature=1.0, max_tokens=4000, api_key="test-key")
 
     def test_llm_client_init_openrouter(self):
         """Test LLMClient initialization with OpenRouter provider."""
@@ -54,8 +54,8 @@ class TestLLMClient:
             assert client.provider == "openrouter"
             mock_chat.assert_called_once_with(
                 model="anthropic/claude-sonnet-4",
-                temperature=0.0,
-                max_tokens=2000,
+                temperature=1.0,
+                max_tokens=4000,
                 api_key="test-key",
                 base_url="https://openrouter.ai/api/v1",
             )
@@ -78,6 +78,17 @@ class TestLLMClient:
         """Create an OpenAI LLMClient instance for testing."""
         with patch('llm_libration.llm.client.ChatOpenAI'):
             return LLMClient(provider="openai", model_name="gpt-4", api_key="test-key")
+
+    @pytest.fixture
+    def openrouter_client(self):
+        """Create an OpenRouter LLMClient instance for testing."""
+        with patch('llm_libration.llm.client.ChatOpenAI'):
+            return LLMClient(
+                provider="openrouter",
+                model_name="anthropic/claude-sonnet-4",
+                api_key="test-key",
+                base_url="https://openrouter.ai/api/v1",
+            )
 
     @pytest.fixture
     def ollama_client(self):
@@ -182,6 +193,25 @@ class TestLLMClient:
         with pytest.raises(LLMResponseError, match="Openai structured analysis failed"):
             openai_client.analyze_image_with_prompt(sample_image, "test prompt")
 
+    def test_openrouter_fallback_to_json_cleanup(self, openrouter_client, sample_image):
+        """Ensure OpenRouter falls back to manual JSON parsing when structured output fails."""
+        mock_structured = Mock()
+        mock_structured.invoke.side_effect = Exception("Invalid JSON response")
+        openrouter_client.llm.with_structured_output = Mock(return_value=mock_structured)
+
+        ai_message = Mock()
+        ai_message.content = (
+            "Looking at this resonant pattern, the behavior is stable.\n"
+            "```json\n{\"status\": \"resonant\", \"subtype\": \"apocentric libration\"}\n```"
+        )
+        openrouter_client.llm.invoke = Mock(return_value=ai_message)
+
+        result = openrouter_client.analyze_image_with_prompt(sample_image, "test prompt")
+
+        assert result.status == ResonanceType.RESONANT
+        assert result.subtype == "apocentric libration"
+        assert openrouter_client.llm.invoke.called
+
     def test_analyze_image_with_prompt_image_error(self, openai_client):
         """Test image analysis with image processing error."""
         with pytest.raises(ImageAnalysisError, match="Image file not found"):
@@ -237,3 +267,16 @@ class TestLLMClient:
         assert isinstance(result, LibrationAnalysisResult)
         assert result.status == ResonanceType.CONTROVERSIAL
         assert result.subtype == "unclear pattern"
+
+    def test_clean_json_response_handles_prose(self, ollama_client):
+        """Ensure JSON cleaner extracts objects surrounded by prose."""
+        messy_content = (
+            "Looking at this resonant angle plot, here's the summary:\n"
+            "Some commentary before the data.\n"
+            "{\"status\": \"non-resonant\", \"subtype\": \"circulation\"}\n"
+            "Misc text after."
+        )
+        cleaned = ollama_client._clean_json_response(messy_content)
+        parsed = json.loads(cleaned)
+        assert parsed["status"] == "non-resonant"
+        assert parsed["subtype"] == "circulation"

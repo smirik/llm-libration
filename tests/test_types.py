@@ -1,6 +1,6 @@
 """Tests for type definitions and enums."""
 
-from llm_libration.types import ResonanceType
+from llm_libration.types import ResonanceType, simplify_resonance_type
 
 
 class TestResonanceType:
@@ -35,3 +35,10 @@ class TestResonanceType:
         assert ResonanceType.RESONANT != ResonanceType.NON_RESONANT
         assert ResonanceType.RESONANT != ResonanceType.TRANSIENT
         assert ResonanceType.RESONANT != ResonanceType.CONTROVERSIAL
+
+    def test_simplify_resonance_type(self):
+        """Simplified helper collapses categories into binary classes."""
+        assert simplify_resonance_type(ResonanceType.RESONANT) == ResonanceType.RESONANT
+        assert simplify_resonance_type(ResonanceType.TRANSIENT) == ResonanceType.RESONANT
+        assert simplify_resonance_type(ResonanceType.NON_RESONANT) == ResonanceType.NON_RESONANT
+        assert simplify_resonance_type(ResonanceType.CONTROVERSIAL) == ResonanceType.NON_RESONANT

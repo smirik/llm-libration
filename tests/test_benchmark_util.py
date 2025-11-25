@@ -124,6 +124,13 @@ class TestBenchmarkUtilities:
         # Test unknown mapping (defaults to controversial)
         assert map_folder_to_expected_result('unknown') == ResonanceType.CONTROVERSIAL
 
+        # Simplified mapping collapses to binary classes
+        assert map_folder_to_expected_result('libration', simplified=True) == ResonanceType.RESONANT
+        assert map_folder_to_expected_result('transient', simplified=True) == ResonanceType.RESONANT
+        assert map_folder_to_expected_result('non-resonant', simplified=True) == ResonanceType.NON_RESONANT
+        assert map_folder_to_expected_result('controversial', simplified=True) == ResonanceType.NON_RESONANT
+        assert map_folder_to_expected_result('unknown', simplified=True) == ResonanceType.NON_RESONANT
+
     def test_map_folder_to_expected_result_partial_matches(self):
         """Test folder mapping with partial matches."""
         # Test that partial matches work
