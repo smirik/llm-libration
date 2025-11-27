@@ -280,3 +280,208 @@ class TestLLMClient:
         parsed = json.loads(cleaned)
         assert parsed["status"] == "non-resonant"
         assert parsed["subtype"] == "circulation"
+
+    def test_llm_client_init_huggingface(self):
+        """Test LLMClient initialization with HuggingFace provider."""
+        with patch('llm_libration.llm.client.HF_AVAILABLE', True), \
+             patch('llm_libration.llm.client.TORCH_AVAILABLE', True), \
+             patch('llm_libration.llm.client.AutoProcessor') as mock_processor, \
+             patch('llm_libration.llm.client.AutoModelForImageTextToText') as mock_model, \
+             patch('llm_libration.llm.client.torch') as mock_torch:
+            mock_torch.bfloat16 = 'bfloat16'
+            mock_model.from_pretrained.return_value = Mock(device='cuda')
+
+            client = LLMClient(
+                provider="huggingface",
+                model_name="Qwen/Qwen2-VL-2B-Instruct",
+                quantization="none"
+            )
+            assert client is not None
+            assert client.provider == "huggingface"
+            assert client.model_name == "Qwen/Qwen2-VL-2B-Instruct"
+            assert client.quantization == "none"
+            mock_processor.from_pretrained.assert_called_once_with("Qwen/Qwen2-VL-2B-Instruct")
+
+    def test_llm_client_init_huggingface_4bit(self):
+        """Test LLMClient initialization with HuggingFace provider and 4-bit quantization."""
+        with patch('llm_libration.llm.client.HF_AVAILABLE', True), \
+             patch('llm_libration.llm.client.TORCH_AVAILABLE', True), \
+             patch('llm_libration.llm.client.AutoProcessor') as mock_processor, \
+             patch('llm_libration.llm.client.AutoModelForImageTextToText') as mock_model, \
+             patch('llm_libration.llm.client.BitsAndBytesConfig') as mock_bnb, \
+             patch('llm_libration.llm.client.torch') as mock_torch:
+            mock_torch.bfloat16 = 'bfloat16'
+            mock_model.from_pretrained.return_value = Mock(device='cuda')
+
+            client = LLMClient(
+                provider="huggingface",
+                model_name="Qwen/Qwen2-VL-7B-Instruct",
+                quantization="4bit"
+            )
+            assert client is not None
+            assert client.provider == "huggingface"
+            assert client.quantization == "4bit"
+            mock_bnb.assert_called_once()
+            call_kwargs = mock_bnb.call_args[1]
+            assert call_kwargs['load_in_4bit'] is True
+
+    def test_llm_client_init_huggingface_8bit(self):
+        """Test LLMClient initialization with HuggingFace provider and 8-bit quantization."""
+        with patch('llm_libration.llm.client.HF_AVAILABLE', True), \
+             patch('llm_libration.llm.client.TORCH_AVAILABLE', True), \
+             patch('llm_libration.llm.client.AutoProcessor') as mock_processor, \
+             patch('llm_libration.llm.client.AutoModelForImageTextToText') as mock_model, \
+             patch('llm_libration.llm.client.BitsAndBytesConfig') as mock_bnb, \
+             patch('llm_libration.llm.client.torch') as mock_torch:
+            mock_torch.bfloat16 = 'bfloat16'
+            mock_model.from_pretrained.return_value = Mock(device='cuda')
+
+            client = LLMClient(
+                provider="huggingface",
+                model_name="Qwen/Qwen2-VL-7B-Instruct",
+                quantization="8bit"
+            )
+            assert client is not None
+            assert client.quantization == "8bit"
+            mock_bnb.assert_called_once_with(load_in_8bit=True)
+
+    def test_llm_client_init_huggingface_missing_transformers(self):
+        """Test HuggingFace provider fails gracefully when transformers not installed."""
+        with patch('llm_libration.llm.client.HF_AVAILABLE', False):
+            with pytest.raises(ConfigurationError, match="transformers.*not installed"):
+                LLMClient(provider="huggingface", model_name="test-model")
+
+    def test_llm_client_init_huggingface_missing_torch(self):
+        """Test HuggingFace provider fails gracefully when torch not installed."""
+        with patch('llm_libration.llm.client.HF_AVAILABLE', True), \
+             patch('llm_libration.llm.client.TORCH_AVAILABLE', False):
+            with pytest.raises(ConfigurationError, match="PyTorch"):
+                LLMClient(provider="huggingface", model_name="test-model")
+
+    def test_llm_client_init_mlx(self):
+        """Test LLMClient initialization with MLX provider."""
+        with patch('llm_libration.llm.client.MLX_AVAILABLE', True), \
+             patch('llm_libration.llm.client.mlx_load') as mock_load, \
+             patch('llm_libration.llm.client.mlx_load_config') as mock_config, \
+             patch('llm_libration.llm.client.platform') as mock_platform:
+            mock_platform.system.return_value = "Darwin"
+            mock_platform.machine.return_value = "arm64"
+            mock_load.return_value = (Mock(), Mock())
+            mock_config.return_value = {}
+
+            client = LLMClient(
+                provider="mlx",
+                model_name="mlx-community/Qwen2-VL-2B-Instruct-4bit"
+            )
+            assert client is not None
+            assert client.provider == "mlx"
+            assert client.model_name == "mlx-community/Qwen2-VL-2B-Instruct-4bit"
+            mock_load.assert_called_once_with("mlx-community/Qwen2-VL-2B-Instruct-4bit")
+
+    def test_llm_client_init_mlx_missing_mlx_vlm(self):
+        """Test MLX provider fails gracefully when mlx-vlm not installed."""
+        with patch('llm_libration.llm.client.MLX_AVAILABLE', False):
+            with pytest.raises(ConfigurationError, match="mlx-vlm.*not installed"):
+                LLMClient(provider="mlx", model_name="test-model")
+
+    def test_mlx_platform_validation_linux(self):
+        """Test MLX provider rejects non-macOS platforms."""
+        with patch('llm_libration.llm.client.MLX_AVAILABLE', True), \
+             patch('llm_libration.llm.client.platform') as mock_platform:
+            mock_platform.system.return_value = "Linux"
+            with pytest.raises(ConfigurationError, match="only available on macOS"):
+                LLMClient(provider="mlx", model_name="test-model")
+
+    def test_mlx_platform_validation_intel_mac(self):
+        """Test MLX provider rejects Intel Macs."""
+        with patch('llm_libration.llm.client.MLX_AVAILABLE', True), \
+             patch('llm_libration.llm.client.platform') as mock_platform:
+            mock_platform.system.return_value = "Darwin"
+            mock_platform.machine.return_value = "x86_64"
+            with pytest.raises(ConfigurationError, match="Apple Silicon"):
+                LLMClient(provider="mlx", model_name="test-model")
+
+    @pytest.fixture
+    def huggingface_client(self):
+        """Create a HuggingFace LLMClient instance for testing."""
+        with patch('llm_libration.llm.client.HF_AVAILABLE', True), \
+             patch('llm_libration.llm.client.TORCH_AVAILABLE', True), \
+             patch('llm_libration.llm.client.AutoProcessor') as mock_processor, \
+             patch('llm_libration.llm.client.AutoModelForImageTextToText') as mock_model, \
+             patch('llm_libration.llm.client.torch') as mock_torch:
+            mock_torch.bfloat16 = 'bfloat16'
+            mock_torch.no_grad.return_value.__enter__ = Mock()
+            mock_torch.no_grad.return_value.__exit__ = Mock()
+            mock_model_instance = Mock()
+            mock_model_instance.device = 'cuda'
+            mock_model.from_pretrained.return_value = mock_model_instance
+
+            client = LLMClient(
+                provider="huggingface",
+                model_name="Qwen/Qwen2-VL-2B-Instruct",
+                quantization="none"
+            )
+            client._mock_torch = mock_torch
+            return client
+
+    @pytest.fixture
+    def mlx_client(self):
+        """Create an MLX LLMClient instance for testing."""
+        with patch('llm_libration.llm.client.MLX_AVAILABLE', True), \
+             patch('llm_libration.llm.client.mlx_load') as mock_load, \
+             patch('llm_libration.llm.client.mlx_load_config') as mock_config, \
+             patch('llm_libration.llm.client.platform') as mock_platform:
+            mock_platform.system.return_value = "Darwin"
+            mock_platform.machine.return_value = "arm64"
+            mock_load.return_value = (Mock(), Mock())
+            mock_config.return_value = {}
+
+            return LLMClient(
+                provider="mlx",
+                model_name="mlx-community/Qwen2-VL-2B-Instruct-4bit"
+            )
+
+    def test_analyze_image_with_prompt_huggingface_error(self):
+        """Test HuggingFace provider handles errors gracefully."""
+        with patch('llm_libration.llm.client.HF_AVAILABLE', True), \
+             patch('llm_libration.llm.client.TORCH_AVAILABLE', True), \
+             patch('llm_libration.llm.client.AutoProcessor') as mock_processor, \
+             patch('llm_libration.llm.client.AutoModelForImageTextToText') as mock_model, \
+             patch('llm_libration.llm.client.torch') as mock_torch:
+            mock_torch.bfloat16 = 'bfloat16'
+            mock_model.from_pretrained.return_value = Mock(device='cuda')
+
+            client = LLMClient(
+                provider="huggingface",
+                model_name="Qwen/Qwen2-VL-2B-Instruct",
+                quantization="none"
+            )
+
+            client.hf_processor.apply_chat_template.side_effect = Exception("Model error")
+
+            with pytest.raises(LLMResponseError, match="HuggingFace analysis failed"):
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                    img = Image.new('RGB', (100, 100), color='red')
+                    img.save(f.name, 'PNG')
+                    try:
+                        client.analyze_image_with_prompt(f.name, "test prompt")
+                    finally:
+                        os.unlink(f.name)
+
+    def test_analyze_image_with_prompt_success_mlx(self, mlx_client, sample_image):
+        """Test successful image analysis with MLX provider."""
+        with patch('llm_libration.llm.client.mlx_apply_chat_template') as mock_template, \
+             patch('llm_libration.llm.client.mlx_generate') as mock_generate:
+            mock_template.return_value = "formatted prompt"
+            mock_generate.return_value = '{"status": "non-resonant", "subtype": "circulation"}'
+
+            result = mlx_client.analyze_image_with_prompt(sample_image, "test prompt")
+
+            assert isinstance(result, LibrationAnalysisResult)
+            assert result.status == ResonanceType.NON_RESONANT
+            assert result.subtype == "circulation"
+
+    def test_analyze_image_with_prompt_mlx_image_not_found(self, mlx_client):
+        """Test MLX provider handles missing image file."""
+        with pytest.raises(ImageAnalysisError, match="Image file not found"):
+            mlx_client.analyze_image_with_prompt("nonexistent.png", "test prompt")

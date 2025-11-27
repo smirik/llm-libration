@@ -1,5 +1,6 @@
 """Run command for CLI."""
 
+import platform
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -10,6 +11,22 @@ from llm_libration import LibrationAnalyzer, config
 from llm_libration.exceptions import ConfigurationError
 from llm_libration.types import ResonanceType, simplify_resonance_type
 
+try:
+    from llm_libration.llm.client import HF_AVAILABLE, MLX_AVAILABLE
+except ImportError:
+    HF_AVAILABLE = False
+    MLX_AVAILABLE = False
+
+
+def _get_all_providers() -> list[str]:
+    """Get list of all available providers for 'all' option."""
+    providers = ["openai", "anthropic", "openrouter", "ollama"]
+    if HF_AVAILABLE:
+        providers.append("huggingface")
+    if MLX_AVAILABLE and platform.system() == "Darwin" and platform.machine() in ("arm64", "aarch64"):
+        providers.append("mlx")
+    return providers
+
 
 def analyze_multiple_images(
     image_paths: List[Path],
@@ -17,6 +34,7 @@ def analyze_multiple_images(
     model_name: Optional[str] = None,
     prompt_template: Optional[str] = None,
     simplified: bool = False,
+    quantization: Optional[str] = None,
 ) -> None:
     """
     Analyze multiple images with specified provider(s).
@@ -25,9 +43,12 @@ def analyze_multiple_images(
         image_paths: List of paths to image files
         provider: Provider name or 'all' for all providers
         model_name: Optional model name override
+        prompt_template: Optional prompt template override
+        simplified: Whether to use simplified classification
+        quantization: Quantization mode for HuggingFace (none, 4bit, 8bit)
     """
     if provider == 'all':
-        providers = ["openai", "anthropic", "openrouter", "ollama"]
+        providers = _get_all_providers()
     else:
         providers = [provider]
 
@@ -40,6 +61,8 @@ def analyze_multiple_images(
             init_kwargs = {'provider': prov}
             if model_name:
                 init_kwargs['model_name'] = model_name
+            if quantization and prov == 'huggingface':
+                init_kwargs['quantization'] = quantization
             analyzers[prov] = LibrationAnalyzer(**init_kwargs)
         except Exception as exc:
             click.echo(f"{prov.upper()}: Initialization error - {exc}", err=True)
@@ -79,10 +102,16 @@ def analyze_multiple_images(
 @click.option(
     '--provider',
     default='openai',
-    type=click.Choice(['openai', 'anthropic', 'openrouter', 'ollama', 'all'], case_sensitive=False),
-    help='LLM provider to use (default: openai). Use "all" to try all providers.',
+    type=click.Choice(['openai', 'anthropic', 'openrouter', 'ollama', 'huggingface', 'mlx', 'all'], case_sensitive=False),
+    help='LLM provider to use (default: openai). Use "all" to try all available providers.',
 )
 @click.option('--model', 'model_name', help='Model name override (optional)')
+@click.option(
+    '--quantization',
+    default=None,
+    type=click.Choice(['none', '4bit', '8bit'], case_sensitive=False),
+    help='Quantization mode for HuggingFace provider (default: from env or none)',
+)
 @click.option(
     '--prompt-env-var',
     default='PROMPT_TEMPLATE',
@@ -94,7 +123,7 @@ def analyze_multiple_images(
     is_flag=True,
     help='Binary classification helper: use the simplified prompt by default and map transient to resonant.',
 )
-def run(image_files: tuple, provider: str, model_name: Optional[str], prompt_env_var: str, simplified: bool):
+def run(image_files: tuple, provider: str, model_name: Optional[str], quantization: Optional[str], prompt_env_var: str, simplified: bool):
     """Run libration analysis on one or more image files.
 
     IMAGE_FILES: One or more paths to image files to analyze.
@@ -115,7 +144,7 @@ def run(image_files: tuple, provider: str, model_name: Optional[str], prompt_env
         sys.exit(1)
 
     try:
-        analyze_multiple_images(image_paths, provider.lower(), model_name, prompt_template, simplified=simplified)
+        analyze_multiple_images(image_paths, provider.lower(), model_name, prompt_template, simplified=simplified, quantization=quantization)
     except Exception as exc:
         click.echo(f"Analysis failed: {exc}", err=True)
         sys.exit(1)

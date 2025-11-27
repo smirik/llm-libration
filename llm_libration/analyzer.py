@@ -16,21 +16,25 @@ logger = logging.getLogger(__name__)
 class LibrationAnalyzer:
     """Analyzer for detecting libration patterns in resonant angle plots using LLMs."""
 
-    def __init__(self, model_name: str = None, provider: str = None):
+    def __init__(self, model_name: str = None, provider: str = None, quantization: str = None):
         """
         Initialize the LibrationAnalyzer.
 
         Args:
             model_name: Name of the model to use (defaults to config value for current provider)
             provider: LLM provider to use (defaults to config value)
+            quantization: For HuggingFace only: none, 4bit, or 8bit (defaults to config value)
         """
-        config.validate_required_env_vars()
-
-        # Use config defaults if not provided
+        # Resolve provider first, then validate for that specific provider
         provider = provider or config.llm_provider
+        config.validate_required_env_vars(provider)
 
         api_key = ""
         base_url = ""
+        quant = "none"
+        device_map = "auto"
+        torch_dtype = "bfloat16"
+
         if provider == "openai":
             api_key, model_name = config.openai_api_key, model_name or config.openai_model_name
         elif provider == "anthropic":
@@ -43,6 +47,13 @@ class LibrationAnalyzer:
             )
         elif provider == "ollama":
             model_name, base_url = model_name or config.ollama_model_name, config.ollama_base_url
+        elif provider == "huggingface":
+            model_name = model_name or config.hf_model_name
+            quant = quantization or config.hf_quantization
+            device_map = config.hf_device_map
+            torch_dtype = config.hf_torch_dtype
+        elif provider == "mlx":
+            model_name = model_name or config.mlx_model_name
         else:
             raise ConfigurationError(f"Unsupported provider: {provider}")
 
@@ -51,6 +62,9 @@ class LibrationAnalyzer:
             model_name=model_name,
             api_key=api_key,
             base_url=base_url,
+            quantization=quant,
+            device_map=device_map,
+            torch_dtype=torch_dtype,
         )
 
     MAX_RETRIES = 3

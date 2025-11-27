@@ -7,7 +7,7 @@ Note that the author has actively used Claude Code and OpenAI Codex to build thi
 ## Features
 
 - 🔍 **Automated Analysis**: AI-powered detection of libration patterns in resonant angle plots
-- 🌐 **Multiple LLM Providers**: Support for OpenAI, Anthropic, OpenRouter, and Ollama
+- 🌐 **Multiple LLM Providers**: Support for OpenAI, Anthropic, OpenRouter, Ollama, HuggingFace, and MLX (Apple Silicon)
 - 📊 **Plot Classification**: Categorizes resonance behavior as pure, transient, or non-resonant
 - 🧪 **Easy Integration**: Simple Python API for astronomy research workflows
 - ⚙️ **Configurable**: Environment-based configuration for different providers and models
@@ -126,6 +126,73 @@ OLLAMA_MODEL_NAME=qwen2.5vl:7b  # Optional, this is the default
 - `gemma2:2b-vision` (compact model)
 
 **Note:** The package uses the `ollama` Python package for optimal vision support with automatic fallback handling.
+
+### MLX Configuration (macOS Apple Silicon)
+
+MLX provides native Apple Silicon acceleration for local inference:
+
+```bash
+# Install with MLX support
+pip install llm-libration[mlx]
+
+# Or with uv
+uv sync --extra mlx
+```
+
+```bash
+LLM_PROVIDER=mlx
+MLX_MODEL_NAME=mlx-community/Qwen2-VL-2B-Instruct-4bit  # Default
+MLX_MAX_TOKENS=256
+MLX_TEMPERATURE=0.0
+```
+
+**Available MLX Models** (from [mlx-community](https://huggingface.co/mlx-community)):
+
+- `mlx-community/Qwen2-VL-2B-Instruct-4bit` (~1.5GB, recommended for quick tests)
+- `mlx-community/Qwen2-VL-7B-Instruct-4bit` (~4GB)
+- `mlx-community/Qwen3-VL-8B-Instruct-4bit` (~5GB, best quality)
+- `mlx-community/gemma-3n-E2B-it-4bit` (~2.5GB)
+
+#### ⚠️ Transformers Compatibility Issue
+
+**There is a known bug in `transformers>=4.57.0`** that breaks MLX model loading with the error:
+```
+AttributeError: 'dict' object has no attribute 'model_type'
+```
+
+**Issue:** [huggingface/transformers#42369](https://github.com/huggingface/transformers/issues/42369)
+**Fix PR:** [huggingface/transformers#42389](https://github.com/huggingface/transformers/pull/42389) (merged, awaiting release)
+
+**Workaround:** Run the patch script after installing:
+
+```bash
+# Apply the patch
+python scripts/patch_transformers.py
+
+# Then run with MLX
+uv run --extra mlx --no-sync llm-libration run image.png --provider mlx
+```
+
+**Note:** The patch is lost after `uv sync` or `pip install`. Re-run the patch script after dependency updates. Once transformers 4.57.3+ is released, this patch will no longer be needed.
+
+### HuggingFace Configuration (GPU)
+
+For GPU inference with HuggingFace Transformers:
+
+```bash
+# Install with HuggingFace support
+pip install llm-libration[huggingface]
+
+# With quantization support (4bit/8bit)
+pip install llm-libration[huggingface-quantized]
+```
+
+```bash
+LLM_PROVIDER=huggingface
+HF_MODEL_NAME=Qwen/Qwen2-VL-7B-Instruct
+HF_QUANTIZATION=4bit  # none, 4bit, or 8bit
+HF_DEVICE_MAP=auto
+```
 
 ### Advanced Configuration
 

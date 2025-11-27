@@ -26,10 +26,16 @@ from llm_libration.types import ResonanceType, simplify_resonance_type
 @click.option(
     '--provider',
     default='openai',
-    type=click.Choice(['openai', 'anthropic', 'openrouter', 'ollama'], case_sensitive=False),
+    type=click.Choice(['openai', 'anthropic', 'openrouter', 'ollama', 'huggingface', 'mlx'], case_sensitive=False),
     help='LLM provider to use (default: openai)',
 )
 @click.option('--model', 'model_name', help='Model name override (optional)')
+@click.option(
+    '--quantization',
+    default=None,
+    type=click.Choice(['none', '4bit', '8bit'], case_sensitive=False),
+    help='Quantization mode for HuggingFace provider (default: from env or none)',
+)
 @click.option(
     '--prompt-env-var',
     default='PROMPT_TEMPLATE',
@@ -41,7 +47,7 @@ from llm_libration.types import ResonanceType, simplify_resonance_type
     is_flag=True,
     help='Simplify benchmark labels so transient+libration count as resonant and everything else as non-resonant.',
 )
-def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str], prompt_env_var: str, simplified: bool):
+def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str], quantization: Optional[str], prompt_env_var: str, simplified: bool):
     """Run benchmark evaluation on categorized resonance images.
 
     BENCHMARK_DIR: Path to directory containing categorized subdirectories
@@ -65,6 +71,8 @@ def benchmark(benchmark_dir: Path, provider: str, model_name: Optional[str], pro
         init_kwargs = {'provider': provider}
         if model_name:
             init_kwargs['model_name'] = model_name
+        if quantization and provider == 'huggingface':
+            init_kwargs['quantization'] = quantization
         analyzer = LibrationAnalyzer(**init_kwargs)
     except ConfigurationError as exc:
         click.echo(f"❌ {exc}")

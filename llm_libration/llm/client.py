@@ -3,6 +3,7 @@
 import base64
 import json
 import logging
+import platform
 import re
 from pathlib import Path
 from typing import Union
@@ -26,7 +27,43 @@ try:
     from langchain.schema import HumanMessage
 except ImportError:  # pragma: no cover - optional dependency
     HumanMessage = None
+
+# HuggingFace Transformers imports
+try:
+    from transformers import AutoModelForImageTextToText, AutoProcessor, BitsAndBytesConfig  # type: ignore
+    HF_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    HF_AVAILABLE = False
+    AutoModelForImageTextToText = None
+    AutoProcessor = None
+    BitsAndBytesConfig = None
+
+try:
+    import torch  # type: ignore
+    TORCH_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    TORCH_AVAILABLE = False
+    torch = None
+
+# MLX imports (macOS Apple Silicon only)
+try:
+    from mlx_vlm import load as mlx_load, generate as mlx_generate  # type: ignore
+    from mlx_vlm.prompt_utils import apply_chat_template as mlx_apply_chat_template  # type: ignore
+    MLX_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    MLX_AVAILABLE = False
+    mlx_load = None
+    mlx_generate = None
+    mlx_apply_chat_template = None
+
 from PIL import Image
+
+try:
+    from json_repair import repair_json
+    JSON_REPAIR_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    JSON_REPAIR_AVAILABLE = False
+    repair_json = None
 
 from .schema import LibrationAnalysisResult
 from ..exceptions import ImageAnalysisError, LLMResponseError, ConfigurationError
@@ -38,15 +75,27 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     """Client for handling LLM interactions and image processing with structured outputs."""
 
-    def __init__(self, provider: str, model_name: str, api_key: str = "", base_url: str = ""):
+    def __init__(
+        self,
+        provider: str,
+        model_name: str,
+        api_key: str = "",
+        base_url: str = "",
+        quantization: str = "none",
+        device_map: str = "auto",
+        torch_dtype: str = "bfloat16",
+    ):
         """
         Initialize the LLM client.
 
         Args:
-            provider: LLM provider (openai, anthropic, openrouter, ollama)
+            provider: LLM provider (openai, anthropic, openrouter, ollama, huggingface, mlx)
             model_name: Name of the model to use
-            api_key: API key for the provider (not needed for Ollama)
+            api_key: API key for the provider (not needed for Ollama/HuggingFace/MLX)
             base_url: Base URL for the provider (needed for OpenRouter and Ollama)
+            quantization: Quantization mode for HuggingFace (none, 4bit, 8bit)
+            device_map: Device mapping strategy for HuggingFace
+            torch_dtype: Torch dtype for HuggingFace model loading
         """
         self.provider = provider.lower()
         self.model_name = model_name
@@ -101,6 +150,29 @@ class LLMClient:
                     "Install it with `pip install ollama` to enable local vision models."
                 )
             self.ollama_client = ollama.Client(host=base_url)
+        elif self.provider == "huggingface":
+            if not HF_AVAILABLE:
+                raise ConfigurationError(
+                    "HuggingFace provider requested but 'transformers' is not installed. "
+                    "Install with: pip install transformers accelerate"
+                )
+            if not TORCH_AVAILABLE:
+                raise ConfigurationError(
+                    "HuggingFace provider requires PyTorch. Install with: pip install torch"
+                )
+            self.quantization = quantization
+            self.device_map = device_map
+            self.torch_dtype_str = torch_dtype
+            self.hf_model, self.hf_processor = self._init_huggingface_model(model_name)
+        elif self.provider == "mlx":
+            if not MLX_AVAILABLE:
+                raise ConfigurationError(
+                    "MLX provider requested but 'mlx-vlm' is not installed. "
+                    "Install with: pip install mlx-vlm"
+                )
+            self._validate_mlx_platform()
+            self.mlx_model, self.mlx_processor = self._init_mlx_model(model_name)
+            self.mlx_config = self.mlx_model.config  # Use model.config instead of load_config()
         else:
             raise ConfigurationError(f"Unsupported provider: {provider}")
 
@@ -318,6 +390,176 @@ class LLMClient:
             f"Ollama structured analysis failed after all attempts. Details: {error_details}. Last error: {str(last_error)}"
         )
 
+    def _resolve_torch_dtype(self, dtype_str: str):
+        """Convert string dtype to torch dtype."""
+        dtype_map = {
+            "float16": torch.float16,
+            "bfloat16": torch.bfloat16,
+            "float32": torch.float32,
+        }
+        return dtype_map.get(dtype_str, torch.bfloat16)
+
+    def _init_huggingface_model(self, model_name: str):
+        """Initialize HuggingFace vision-language model with optional quantization."""
+        logger.info(f"Loading HuggingFace model: {model_name} (quantization={self.quantization})")
+
+        quantization_config = None
+        if self.quantization == "4bit":
+            if BitsAndBytesConfig is None:
+                raise ConfigurationError(
+                    "4-bit quantization requires bitsandbytes. "
+                    "Install with: pip install bitsandbytes"
+                )
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type=config.hf_4bit_quant_type,
+                bnb_4bit_use_double_quant=config.hf_4bit_use_double_quant,
+                bnb_4bit_compute_dtype=self._resolve_torch_dtype(config.hf_4bit_compute_dtype),
+            )
+        elif self.quantization == "8bit":
+            if BitsAndBytesConfig is None:
+                raise ConfigurationError(
+                    "8-bit quantization requires bitsandbytes. "
+                    "Install with: pip install bitsandbytes"
+                )
+            quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+
+        processor = AutoProcessor.from_pretrained(model_name)
+
+        model_kwargs = {
+            "device_map": self.device_map,
+            "torch_dtype": self._resolve_torch_dtype(self.torch_dtype_str),
+        }
+        if quantization_config:
+            model_kwargs["quantization_config"] = quantization_config
+
+        model = AutoModelForImageTextToText.from_pretrained(model_name, **model_kwargs)
+
+        logger.info(f"HuggingFace model loaded successfully on device: {model.device}")
+        return model, processor
+
+    @staticmethod
+    def _validate_mlx_platform():
+        """Validate that we're running on Apple Silicon macOS."""
+        if platform.system() != "Darwin":
+            raise ConfigurationError(
+                f"MLX provider is only available on macOS. Current platform: {platform.system()}"
+            )
+        if platform.machine() not in ("arm64", "aarch64"):
+            raise ConfigurationError(
+                f"MLX provider requires Apple Silicon (M1/M2/M3/M4). Current architecture: {platform.machine()}"
+            )
+
+    def _init_mlx_model(self, model_name: str):
+        """Initialize MLX vision-language model."""
+        logger.info(f"Loading MLX model: {model_name}")
+        try:
+            model, processor = mlx_load(model_name)
+            logger.info("MLX model loaded successfully")
+            return model, processor
+        except Exception as e:
+            raise ConfigurationError(f"Failed to load MLX model '{model_name}': {str(e)}")
+
+    def _analyze_with_huggingface(self, image_path: Union[str, Path], prompt: str) -> LibrationAnalysisResult:
+        """Analyze image using HuggingFace vision-language model."""
+        try:
+            image = Image.open(image_path)
+            formatted_prompt = self._format_prompt_for_json(prompt)
+
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image"},
+                        {"type": "text", "text": formatted_prompt},
+                    ],
+                }
+            ]
+
+            inputs = self.hf_processor.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+            )
+
+            image_inputs = self.hf_processor(images=image, return_tensors="pt")
+            inputs.update(image_inputs)
+
+            inputs = {k: v.to(self.hf_model.device) for k, v in inputs.items()}
+
+            with torch.no_grad():
+                generated_ids = self.hf_model.generate(
+                    **inputs,
+                    max_new_tokens=config.hf_max_new_tokens,
+                    do_sample=False,
+                )
+
+            input_len = inputs["input_ids"].shape[1]
+            output_text = self.hf_processor.decode(
+                generated_ids[0, input_len:],
+                skip_special_tokens=True
+            )
+
+            logger.debug(f"HuggingFace raw output: {output_text}")
+
+            cleaned_content = self._clean_json_response(output_text)
+            parsed_data = json.loads(cleaned_content)
+
+            if 'status' not in parsed_data or 'subtype' not in parsed_data:
+                raise ValueError(f"Missing required fields in response: {parsed_data}")
+
+            return LibrationAnalysisResult(**parsed_data)
+
+        except ImageAnalysisError:
+            raise
+        except Exception as e:
+            raise LLMResponseError(f"HuggingFace analysis failed: {str(e)}")
+
+    def _analyze_with_mlx(self, image_path: Union[str, Path], prompt: str) -> LibrationAnalysisResult:
+        """Analyze image using MLX vision-language model."""
+        try:
+            image_path = Path(image_path)
+            if not image_path.exists():
+                raise ImageAnalysisError(f"Image file not found: {image_path}")
+
+            formatted_prompt = self._format_prompt_for_json(prompt)
+
+            chat_prompt = mlx_apply_chat_template(
+                self.mlx_processor,
+                self.mlx_config,
+                formatted_prompt,
+                num_images=1
+            )
+
+            output = mlx_generate(
+                self.mlx_model,
+                self.mlx_processor,
+                chat_prompt,
+                [str(image_path)],
+                max_tokens=config.mlx_max_tokens,
+                temp=config.mlx_temperature,
+                verbose=config.mlx_verbose,
+            )
+
+            # mlx_generate returns GenerationResult object with .text attribute
+            output_text = output.text if hasattr(output, 'text') else (output if isinstance(output, str) else str(output))
+            logger.debug(f"MLX raw output: {output_text}")
+
+            cleaned_content = self._clean_json_response(output_text)
+            parsed_data = json.loads(cleaned_content)
+
+            if 'status' not in parsed_data or 'subtype' not in parsed_data:
+                raise ValueError(f"Missing required fields in response: {parsed_data}")
+
+            return LibrationAnalysisResult(**parsed_data)
+
+        except ImageAnalysisError:
+            raise
+        except Exception as e:
+            raise LLMResponseError(f"MLX analysis failed: {str(e)}")
+
     def _clean_json_response(self, content: str) -> str:
         """
         Extract and sanitize JSON content from an LLM response.
@@ -359,6 +601,17 @@ class LLMClient:
                 return serialized
             except json.JSONDecodeError:
                 continue
+
+        # Fallback: try json_repair if available
+        if JSON_REPAIR_AVAILABLE and repair_json is not None:
+            try:
+                repaired = repair_json(content)
+                logger.debug(f"Repaired JSON using json_repair: {repaired}")
+                # Validate the repaired JSON
+                json.loads(repaired)
+                return repaired
+            except Exception as repair_error:
+                logger.debug(f"json_repair failed: {repair_error}")
 
         raise ValueError(f"Content doesn't contain valid JSON: {repr(content)}")
 
@@ -419,6 +672,10 @@ class LLMClient:
                 return self._analyze_with_openrouter_structured(image_path, prompt)
             elif self.provider == "ollama":
                 return self._analyze_with_ollama_structured(image_path, prompt)
+            elif self.provider == "huggingface":
+                return self._analyze_with_huggingface(image_path, prompt)
+            elif self.provider == "mlx":
+                return self._analyze_with_mlx(image_path, prompt)
             else:
                 raise ConfigurationError(f"Unsupported provider: {self.provider}")
 
