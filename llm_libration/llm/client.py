@@ -466,26 +466,57 @@ class LLMClient:
             image = Image.open(image_path)
             formatted_prompt = self._format_prompt_for_json(prompt)
 
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image"},
-                        {"type": "text", "text": formatted_prompt},
-                    ],
-                }
-            ]
+            model_type = getattr(self.hf_model.config, "model_type", "") or ""
+            internvl_like = model_type.startswith("internvl")
 
-            inputs = self.hf_processor.apply_chat_template(
-                messages,
-                add_generation_prompt=True,
-                tokenize=True,
-                return_dict=True,
-                return_tensors="pt",
-            )
+            if internvl_like:
+                # Ensure image placeholder is present for InternVL family.
+                start_img = getattr(self.hf_processor, "image_token", None) or getattr(self.hf_processor.tokenizer, "start_image_token", "<img>")
+                end_img = getattr(self.hf_processor, "end_image_token", None) or getattr(self.hf_processor.tokenizer, "end_image_token", "</img>")
+                # Some processors expect image_token attributes; set explicitly.
+                if hasattr(self.hf_processor, "image_token"):
+                    self.hf_processor.image_token = start_img
+                if hasattr(self.hf_processor, "end_image_token"):
+                    self.hf_processor.end_image_token = end_img
+                if start_img and start_img not in formatted_prompt:
+                    closing = f"{end_img}\n" if end_img else ""
+                    formatted_prompt = f"{start_img}{closing}{formatted_prompt}"
+                # InternVL family expects explicit text/images instead of chat templates.
+                inputs = self.hf_processor(
+                    images=image,
+                    text=formatted_prompt,
+                    return_tensors="pt",
+                )
+            else:
+                try:
+                    # Most chat-style processors (e.g., LLaVA/Qwen VL) accept messages + images split
+                    messages = [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "image"},
+                                {"type": "text", "text": formatted_prompt},
+                            ],
+                        }
+                    ]
 
-            image_inputs = self.hf_processor(images=image, return_tensors="pt")
-            inputs.update(image_inputs)
+                    inputs = self.hf_processor.apply_chat_template(
+                        messages,
+                        add_generation_prompt=True,
+                        tokenize=True,
+                        return_dict=True,
+                        return_tensors="pt",
+                    )
+
+                    image_inputs = self.hf_processor(images=image, return_tensors="pt")
+                    inputs.update(image_inputs)
+                except Exception:
+                    # Fallback for processors that do not support chat templates
+                    inputs = self.hf_processor(
+                        images=image,
+                        text=formatted_prompt,
+                        return_tensors="pt",
+                    )
 
             inputs = {k: v.to(self.hf_model.device) for k, v in inputs.items()}
 
