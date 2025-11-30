@@ -460,63 +460,91 @@ class LLMClient:
         except Exception as e:
             raise ConfigurationError(f"Failed to load MLX model '{model_name}': {str(e)}")
 
+    def _detect_vlm_family(self) -> str:
+        """Detect VLM family from model config."""
+        model_type = (getattr(self.hf_model.config, "model_type", "") or "").lower()
+        architectures = getattr(self.hf_model.config, "architectures", []) or []
+        arch_str = str(architectures)
+
+        if "qwen3_vl" in model_type or "Qwen3VL" in arch_str:
+            return "qwen3_vl"
+        elif "qwen2_vl" in model_type or "Qwen2VL" in arch_str:
+            return "qwen2_vl"
+        elif "internvl" in model_type or "InternVL" in arch_str:
+            return "internvl"
+        elif "llava" in model_type or "Llava" in arch_str:
+            return "llava"
+        elif "gemma3" in model_type or "Gemma3" in arch_str:
+            return "gemma3"
+        elif "phi4" in model_type or "Phi4" in arch_str:
+            return "phi4"
+        else:
+            return "generic"
+
+    def _process_qwen_vl(self, image: "Image.Image", prompt: str) -> dict:
+        """Process image for Qwen2-VL / Qwen2.5-VL / Qwen3-VL models."""
+        messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": prompt}]}]
+        text = self.hf_processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+        return self.hf_processor(text=text, images=image, return_tensors="pt")
+
+    def _process_internvl(self, image: "Image.Image", prompt: str) -> dict:
+        """Process image for InternVL3 models."""
+        messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": prompt}]}]
+        return self.hf_processor.apply_chat_template(
+            messages, images=image, return_tensors="pt", return_dict=True
+        )
+
+    def _process_llava(self, image: "Image.Image", prompt: str) -> dict:
+        """Process image for LLaVA-NeXT models."""
+        messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": prompt}]}]
+        text = self.hf_processor.apply_chat_template(messages, add_generation_prompt=True)
+        return self.hf_processor(text=text, images=image, return_tensors="pt")
+
+    def _process_gemma3(self, image: "Image.Image", prompt: str) -> dict:
+        """Process image for Gemma3 models."""
+        messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": prompt}]}]
+        inputs = self.hf_processor.apply_chat_template(
+            messages, add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt"
+        )
+        inputs.update(self.hf_processor(images=image, return_tensors="pt"))
+        return inputs
+
+    def _process_phi4(self, image: "Image.Image", prompt: str) -> dict:
+        """Process image for Phi4 models."""
+        messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": prompt}]}]
+        text = self.hf_processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+        return self.hf_processor(text=text, images=image, return_tensors="pt")
+
+    def _process_generic(self, image: "Image.Image", prompt: str) -> dict:
+        """Generic fallback for unknown VLM models."""
+        try:
+            messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": prompt}]}]
+            text = self.hf_processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            return self.hf_processor(text=text, images=image, return_tensors="pt")
+        except Exception:
+            return self.hf_processor(images=image, text=prompt, return_tensors="pt")
+
     def _analyze_with_huggingface(self, image_path: Union[str, Path], prompt: str) -> LibrationAnalysisResult:
         """Analyze image using HuggingFace vision-language model."""
         try:
             image = Image.open(image_path)
             formatted_prompt = self._format_prompt_for_json(prompt)
 
-            model_type = getattr(self.hf_model.config, "model_type", "") or ""
-            internvl_like = model_type.startswith("internvl")
+            vlm_family = self._detect_vlm_family()
+            logger.debug(f"Detected VLM family: {vlm_family}")
 
-            if internvl_like:
-                # Ensure image placeholder is present for InternVL family.
-                start_img = getattr(self.hf_processor, "image_token", None) or getattr(self.hf_processor.tokenizer, "start_image_token", "<img>")
-                end_img = getattr(self.hf_processor, "end_image_token", None) or getattr(self.hf_processor.tokenizer, "end_image_token", "</img>")
-                # Some processors expect image_token attributes; set explicitly.
-                if hasattr(self.hf_processor, "image_token"):
-                    self.hf_processor.image_token = start_img
-                if hasattr(self.hf_processor, "end_image_token"):
-                    self.hf_processor.end_image_token = end_img
-                if start_img and start_img not in formatted_prompt:
-                    closing = f"{end_img}\n" if end_img else ""
-                    formatted_prompt = f"{start_img}{closing}{formatted_prompt}"
-                # InternVL family expects explicit text/images instead of chat templates.
-                inputs = self.hf_processor(
-                    images=image,
-                    text=formatted_prompt,
-                    return_tensors="pt",
-                )
-            else:
-                try:
-                    # Most chat-style processors (e.g., LLaVA/Qwen VL) accept messages + images split
-                    messages = [
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "image"},
-                                {"type": "text", "text": formatted_prompt},
-                            ],
-                        }
-                    ]
+            handler_map = {
+                "qwen3_vl": self._process_qwen_vl,
+                "qwen2_vl": self._process_qwen_vl,
+                "internvl": self._process_internvl,
+                "llava": self._process_llava,
+                "gemma3": self._process_gemma3,
+                "phi4": self._process_phi4,
+                "generic": self._process_generic,
+            }
 
-                    inputs = self.hf_processor.apply_chat_template(
-                        messages,
-                        add_generation_prompt=True,
-                        tokenize=True,
-                        return_dict=True,
-                        return_tensors="pt",
-                    )
-
-                    image_inputs = self.hf_processor(images=image, return_tensors="pt")
-                    inputs.update(image_inputs)
-                except Exception:
-                    # Fallback for processors that do not support chat templates
-                    inputs = self.hf_processor(
-                        images=image,
-                        text=formatted_prompt,
-                        return_tensors="pt",
-                    )
+            handler = handler_map.get(vlm_family, self._process_generic)
+            inputs = handler(image, formatted_prompt)
 
             inputs = {k: v.to(self.hf_model.device) for k, v in inputs.items()}
 
