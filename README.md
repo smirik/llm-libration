@@ -206,6 +206,12 @@ llm-libration run input/demo.png --provider anthropic
 # Analyze multiple images
 llm-libration run input/demo.png input/463.png --provider openai
 
+# Analyze a directory and save results to CSV
+llm-libration run input/images --provider openai --output-csv results.csv
+
+# Analyze in batches and resume from previous CSV
+llm-libration run input/images --batch-size 200 --output-csv results.csv --resume
+
 # Test all providers at once
 llm-libration run input/demo.png --provider all
 
@@ -218,11 +224,14 @@ llm-libration run input/demo.png --prompt-env-var PROMPT_TEMPLATE_SIMPLIFIED
 
 **Run Command Options:**
 
-- `IMAGE_FILES`: One or more image paths (required)
+- `IMAGE_FILES`: One or more image paths or directories (required)
 - `--provider`: LLM provider (`openai`, `anthropic`, `openrouter`, `ollama`, `all`) (default: `openai`)
 - `--model`: Custom model name (optional)
 - `--prompt-env-var`: Environment variable holding the prompt template (default: `PROMPT_TEMPLATE`)
 - `--simplified`: Force binary resonant/non-resonant classification (defaults prompt to `PROMPT_TEMPLATE_SIMPLIFIED` when not overridden)
+- `--batch-size`: Number of images to process per batch (default: `100`)
+- `--resume`: Resume from the last saved batch in the output CSV (skips already processed rows)
+- `--output-csv`: Save analysis results to the given CSV path. When a directory is provided, a timestamped CSV is created automatically if not specified.
 
 ### Benchmark Evaluation
 

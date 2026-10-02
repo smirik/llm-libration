@@ -1,6 +1,7 @@
 """Tests for the run CLI command."""
 
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -54,10 +55,15 @@ class TestRunCLI:
         with patch('llm_libration.cli.run.analyze_multiple_images') as mock_analyze:
             result = runner.invoke(main, ['run', sample_image_file])
 
-            assert result.exit_code == 0
-            mock_analyze.assert_called_once_with(
-                [Path(sample_image_file)], 'openai', None, 'dummy prompt', simplified=False
-            )
+        assert result.exit_code == 0
+        mock_analyze.assert_called_once()
+        args, kwargs = mock_analyze.call_args
+        assert args[0] == [Path(sample_image_file)]
+        assert args[1] == 'openai'
+        assert args[2] is None
+        assert args[3] == 'dummy prompt'
+        assert kwargs['simplified'] is False
+        assert kwargs['collect_results'] is False
 
     def test_run_multiple_images(self, runner, sample_image_file):
         """Test run command with multiple images."""
@@ -73,13 +79,14 @@ class TestRunCLI:
                 result = runner.invoke(main, ['run', sample_image_file, image_path2, '--provider', 'anthropic'])
 
                 assert result.exit_code == 0
-                mock_analyze.assert_called_once_with(
-                    [Path(sample_image_file), Path(image_path2)],
-                    'anthropic',
-                    None,
-                    'dummy prompt',
-                    simplified=False,
-                )
+                mock_analyze.assert_called_once()
+                args, kwargs = mock_analyze.call_args
+                assert args[0] == [Path(sample_image_file), Path(image_path2)]
+                assert args[1] == 'anthropic'
+                assert args[2] is None
+                assert args[3] == 'dummy prompt'
+                assert kwargs['simplified'] is False
+                assert kwargs['collect_results'] is False
         finally:
             os.unlink(image_path2)
 
@@ -88,10 +95,15 @@ class TestRunCLI:
         with patch('llm_libration.cli.run.analyze_multiple_images') as mock_analyze:
             result = runner.invoke(main, ['run', sample_image_file, '--provider', 'openai', '--model', 'gpt-4-vision'])
 
-            assert result.exit_code == 0
-            mock_analyze.assert_called_once_with(
-                [Path(sample_image_file)], 'openai', 'gpt-4-vision', 'dummy prompt', simplified=False
-            )
+        assert result.exit_code == 0
+        mock_analyze.assert_called_once()
+        args, kwargs = mock_analyze.call_args
+        assert args[0] == [Path(sample_image_file)]
+        assert args[1] == 'openai'
+        assert args[2] == 'gpt-4-vision'
+        assert args[3] == 'dummy prompt'
+        assert kwargs['simplified'] is False
+        assert kwargs['collect_results'] is False
 
     def test_run_prompt_env_option(self, runner, sample_image_file, mock_prompt_template):
         """Ensure custom prompt variable name is honored."""
@@ -100,11 +112,16 @@ class TestRunCLI:
                 main, ['run', sample_image_file, '--prompt-env-var', 'ALT_PROMPT']
             )
 
-            assert result.exit_code == 0
-            mock_prompt_template.assert_called_with('ALT_PROMPT')
-            mock_analyze.assert_called_once_with(
-                [Path(sample_image_file)], 'openai', None, 'dummy prompt', simplified=False
-            )
+        assert result.exit_code == 0
+        mock_prompt_template.assert_called_with('ALT_PROMPT')
+        mock_analyze.assert_called_once()
+        args, kwargs = mock_analyze.call_args
+        assert args[0] == [Path(sample_image_file)]
+        assert args[1] == 'openai'
+        assert args[2] is None
+        assert args[3] == 'dummy prompt'
+        assert kwargs['simplified'] is False
+        assert kwargs['collect_results'] is False
 
     def test_run_simplified_defaults_prompt(self, runner, sample_image_file, mock_prompt_template):
         """Simplified flag selects the binary prompt when no custom env var is provided."""
@@ -112,11 +129,72 @@ class TestRunCLI:
         with patch('llm_libration.cli.run.analyze_multiple_images') as mock_analyze:
             result = runner.invoke(main, ['run', sample_image_file, '--simplified'])
 
-            assert result.exit_code == 0
-            mock_prompt_template.assert_called_with('PROMPT_TEMPLATE_SIMPLIFIED')
-            mock_analyze.assert_called_once_with(
-                [Path(sample_image_file)], 'openai', None, 'binary prompt', simplified=True
-            )
+        assert result.exit_code == 0
+        mock_prompt_template.assert_called_with('PROMPT_TEMPLATE_SIMPLIFIED')
+        mock_analyze.assert_called_once()
+        args, kwargs = mock_analyze.call_args
+        assert args[0] == [Path(sample_image_file)]
+        assert args[1] == 'openai'
+        assert args[2] is None
+        assert args[3] == 'binary prompt'
+        assert kwargs['simplified'] is True
+        assert kwargs['collect_results'] is False
+
+    def test_run_directory_with_csv_output(self, runner, sample_image_file, tmp_path):
+        """Directory input collects images and writes CSV when requested."""
+        images_dir = tmp_path / 'images'
+        images_dir.mkdir()
+        image_path = images_dir / 'copied.png'
+        shutil.copy(sample_image_file, image_path)
+
+        output_csv = tmp_path / 'results.csv'
+        def fake_analyze(paths, *args, **kwargs):
+            callback = kwargs.get('results_callback')
+            for p in paths:
+                if callback:
+                    callback({'provider': 'openai', 'image': str(p.resolve()), 'status': 'resonant', 'subtype': ''})
+            return []
+
+        with patch('llm_libration.cli.run.analyze_multiple_images', side_effect=fake_analyze) as mock_analyze:
+            result = runner.invoke(main, ['run', str(images_dir), '--output-csv', str(output_csv)])
+
+        assert result.exit_code == 0
+        mock_analyze.assert_called_once()
+        args, kwargs = mock_analyze.call_args
+        assert args[0] == [image_path]
+        assert kwargs['collect_results'] is False
+        assert output_csv.exists()
+        contents = output_csv.read_text()
+        assert 'provider,image,status,subtype' in contents
+        assert 'resonant' in contents
+
+    def test_run_directory_autosaves_csv(self, runner, sample_image_file, tmp_path):
+        """CSV file is created by default when a directory is provided."""
+        batch_dir = tmp_path / 'batch'
+        batch_dir.mkdir()
+        image_path = batch_dir / 'example.png'
+        shutil.copy(sample_image_file, image_path)
+
+        def fake_analyze(paths, *args, **kwargs):
+            callback = kwargs.get('results_callback')
+            for p in paths:
+                if callback:
+                    callback({'provider': 'openai', 'image': str(p.resolve()), 'status': 'resonant', 'subtype': ''})
+            return []
+
+        with patch('llm_libration.cli.run.analyze_multiple_images', side_effect=fake_analyze) as mock_analyze:
+            result = runner.invoke(main, ['run', str(batch_dir)])
+
+        assert result.exit_code == 0
+        mock_analyze.assert_called_once()
+        args, kwargs = mock_analyze.call_args
+        assert args[0] == [image_path]
+        assert kwargs['collect_results'] is False
+
+        generated_csv = list(batch_dir.glob('libration_run_results_*.csv'))
+        assert generated_csv, "Expected CSV file to be generated for directory input"
+        csv_contents = generated_csv[0].read_text()
+        assert 'openai' in csv_contents
 
     def test_run_error_handling(self, runner, sample_image_file):
         """Test run command error handling."""
@@ -127,6 +205,89 @@ class TestRunCLI:
 
             assert result.exit_code == 1
             assert 'Analysis failed: Analysis failed' in result.output
+
+    def test_run_batches_flush_results(self, runner, sample_image_file, tmp_path):
+        """Batches are flushed to CSV after each chunk."""
+        images_dir = tmp_path / 'many'
+        images_dir.mkdir()
+        image_a = images_dir / 'a.png'
+        image_b = images_dir / 'b.png'
+        shutil.copy(sample_image_file, image_a)
+        shutil.copy(sample_image_file, image_b)
+
+        output_csv = tmp_path / 'batched.csv'
+        callbacks_seen = []
+
+        def fake_analyze(paths, *args, **kwargs):
+            callback = kwargs.get('results_callback')
+            processed_pairs = kwargs.get('processed_pairs') or set()
+            for p in paths:
+                if ('openai', str(p.resolve())) in processed_pairs:
+                    continue
+                if callback:
+                    row = {'provider': 'openai', 'image': str(p.resolve()), 'status': 'resonant', 'subtype': ''}
+                    callback(row)
+                    callbacks_seen.append(row)
+            return []
+
+        with patch('llm_libration.cli.run.analyze_multiple_images', side_effect=fake_analyze) as mock_analyze:
+            result = runner.invoke(main, ['run', str(images_dir), '--output-csv', str(output_csv), '--batch-size', '1'])
+
+        assert result.exit_code == 0
+        assert mock_analyze.call_count == 2
+        assert output_csv.exists()
+        lines = output_csv.read_text().strip().splitlines()
+        assert len(lines) == 3  # header + 2 rows
+        assert len(callbacks_seen) == 2
+
+    def test_run_resume_skips_processed(self, runner, sample_image_file, tmp_path):
+        """Resume mode skips already saved results and appends new rows without a header."""
+        images_dir = tmp_path / 'resume'
+        images_dir.mkdir()
+        image_a = images_dir / 'a.png'
+        image_b = images_dir / 'b.png'
+        shutil.copy(sample_image_file, image_a)
+        shutil.copy(sample_image_file, image_b)
+
+        output_csv = tmp_path / 'resume.csv'
+        # Pre-write a CSV with the first image processed
+        output_csv.write_text(
+            "provider,image,status,subtype\nopenai,{},resonant,\n".format(str(image_a.resolve()))
+        )
+
+        callbacks_seen = []
+
+        def fake_analyze(paths, *args, **kwargs):
+            callback = kwargs.get('results_callback')
+            processed_pairs = kwargs.get('processed_pairs') or set()
+            for p in paths:
+                if ('openai', str(p.resolve())) in processed_pairs:
+                    continue
+                if callback:
+                    row = {'provider': 'openai', 'image': str(p.resolve()), 'status': 'resonant', 'subtype': ''}
+                    callback(row)
+                    callbacks_seen.append(row)
+            return []
+
+        with patch('llm_libration.cli.run.analyze_multiple_images', side_effect=fake_analyze):
+            result = runner.invoke(
+                main,
+                [
+                    'run',
+                    str(images_dir),
+                    '--output-csv',
+                    str(output_csv),
+                    '--batch-size',
+                    '1',
+                    '--resume',
+                ],
+            )
+
+        assert result.exit_code == 0
+        # Only the second image should be processed
+        assert len(callbacks_seen) == 1
+        lines = output_csv.read_text().strip().splitlines()
+        assert len(lines) == 3  # header + original + new row
 
     def test_run_image_not_found(self, runner):
         """Test run command with non-existent image."""
@@ -146,10 +307,18 @@ class TestRunCLI:
             )
             mock_analyzer_class.return_value = mock_analyzer
 
-            analyze_multiple_images([Path(sample_image_file)], 'openai', None, 'prompt-here', False)
+            results = analyze_multiple_images([Path(sample_image_file)], 'openai', None, 'prompt-here', False)
 
             mock_analyzer_class.assert_called_once_with(provider='openai')
             mock_analyzer.analyze_image.assert_called_once()
+            assert results == [
+                {
+                    'provider': 'openai',
+                    'image': str(Path(sample_image_file).resolve()),
+                    'status': 'resonant',
+                    'subtype': 'apocentric libration',
+                }
+            ]
 
     def test_analyze_multiple_images_all_providers(self, sample_image_file):
         """Test analyze_multiple_images function with all providers."""
@@ -217,11 +386,12 @@ class TestRunCLI:
             mock_analyzer_class.return_value = mock_analyzer
 
             # Should not raise exception, just print error
-            analyze_multiple_images([Path(sample_image_file)], 'openai', None, 'prompt-here', False)
+            results = analyze_multiple_images([Path(sample_image_file)], 'openai', None, 'prompt-here', False)
 
             # Check that error was echoed
             error_calls = [call for call in mock_echo.call_args_list if 'Error' in str(call)]
             assert len(error_calls) > 0
+            assert results[0]['status'] == 'error'
 
     def test_analyze_multiple_images_nonexistent_file(self):
         """Test analyze_multiple_images function with non-existent file."""
